@@ -1,0 +1,4 @@
+<Response>
+	<Say voice="alice">Hello Microsoft Enjoy Mesos Con, Go Lambdas!</Say>
+	<Play>http://demo.twilio.com/docs/classic.mp3</Play>
+</Response>

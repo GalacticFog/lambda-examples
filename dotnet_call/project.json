@@ -1,0 +1,30 @@
+{
+  "version": "1.0.0-*",
+  "compilationOptions": {
+    "emitEntryPoint": true
+  },
+  "dependencies": {
+    "NETStandard.Library": "1.0.0-rc2-23811",
+      "Newtonsoft.Json": "8.0.2",
+			"System.Net.Http": "4.0.0-beta-*",
+			"Microsoft.CSharp": "4.0.0-beta-*",
+			"System.Runtime.Serialization.Primitives":  "4.0.10-*",
+			"Microsoft.Extensions.PlatformAbstractions": "1.0.0-rc1-final",
+			"Microsoft.Extensions.Configuration.EnvironmentVariables": "1.0.0-rc1-final",
+			"Microsoft.Extensions.Configuration.Abstractions": "1.0.0-rc1-final",
+			"Microsoft.Extensions.Configuration": "1.0.0-rc1-final"
+  },
+  "frameworks": {
+    "dnxcore50": {},
+    "dependencies": {
+      "Newtonsoft.Json": "8.0.2",
+			"Microsoft.NETCore.Runtime": "1.0.1-beta-23225",
+			"System.Net.Http": "4.0.0-beta-*",
+			"System.Runtime.Serialization.Primitives":  "4.0.10-*",
+			"Microsoft.CSharp": "4.0.0-beta-*"
+    }
+  },
+  "runtimes": {
+    "ubuntu.14.04-x64": {}
+  }
+}
