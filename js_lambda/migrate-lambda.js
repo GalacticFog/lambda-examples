@@ -1,40 +1,16 @@
-function migrate(event, creds) {
-    //console.log("migrate.event : " + event );
-    //console.log("migrate.creds : " + creds );
-    var event = JSON.parse( event );
-    var eventContext = event.eventContext;
-    var lambdaArgs = event.lambdaArgs;
-    var meta = "https://meta.aqr.galacticfog.com"
-    var oid = eventContext.org;
-    var eid = eventContext.environment;
-    var container = lambdaArgs.resource;
-    var providerId = lambdaArgs.providerId;
-    if ( ! providerId ) {
+function migrate(args, creds) {
+    console.log("migrate.args : " + args );
+    console.log("migrate.creds : " + creds );
+    var args = JSON.parse( args );
+    var meta = args.meta_url;
+    var pid  = args.provider_id;
+    var fqon = args.fqon;
+    var eid  = args.environment_id;
+    var container = args.resource;
+    if ( ! pid ) {
         console.log("no provider id specified; migration will fail");
         return "FAILURE; must specify providerId"
     }
-
-    // need fqon, get from oid
-    var getUrl = meta + '/orgs/' + oid;
-    console.log("\nGET : " + getUrl);
-    var getCon = new java.net.URL(getUrl).openConnection();
-    getCon.setRequestProperty("Authorization", creds);
-    getCon.setRequestMethod("GET");
-    var getRespCode = getCon.getResponseCode();
-    console.log("Response Code : " + getRespCode);
-    if (getRespCode != 200) return "FAILED";
-    var iStream = getCon.getContent();
-    var br = new java.io.BufferedReader(new java.io.InputStreamReader(iStream, "utf8"));
-    var sb = new java.lang.StringBuffer();
-    var line = "";
-    while ((line = br.readLine()) != null) {
-        sb.append(line);
-    }
-    var orgStr = sb.toString();
-    //console.log(orgStr);
-    var org = JSON.parse(orgStr);
-    var fqon = org.properties.fqon;
-    console.log("FOUND ORG : " + fqon);
 
     var op = container.properties;
     var ni = JSON.parse(op.num_instances);
@@ -43,21 +19,21 @@ function migrate(event, creds) {
         description: container.description,
         properties: {
             provider: {
-                id: providerId
+                id: pid
             },
             num_instances: ni > 0 ? ni : 1,
-            cpus: JSON.parse(op.cpus),
-            memory: JSON.parse(op.memory),
+            cpus: op.cpus,
+            memory: op.memory,
             container_type: op.container_type,
             image: op.image,
             network: op.network,
-            health_checks: op.health_checks ? JSON.parse(op.health_checks) : [],
-            port_mappings: op.port_mappings  ? JSON.parse(op.port_mappings) : [],
-            labels: op.labels ? JSON.parse(op.labels) : {},
-            env: op.env ? JSON.parse(op.env) : {},
-            volumes : op.volumes ? JSON.parse(op.volumes) : [],
-            force_pull : op.force_pull ? JSON.parse(op.force_pull) : false,
-            args : op.args ? JSON.parse(op.args) : [],
+            health_checks: op.health_checks ? op.health_checks : [],
+            port_mappings: op.port_mappings  ? op.port_mappings : [],
+            labels: op.labels ? op.labels : {},
+            env: op.env ? op.env : {},
+            volumes : op.volumes ? op.volumes : [],
+            force_pull : op.force_pull ? op.force_pull : false,
+            args : op.args,
             cmd: op.cmd,
             user: op.user
         }
@@ -77,15 +53,20 @@ function migrate(event, creds) {
     console.log("Response Code : " + createRespCode);
 
     if (createRespCode == 201) {
-        var deleteUrl = meta + '/' + fqon + '/environments/' + eid + '/containers/' + eventContext.resourceId;
+        var deleteUrl = meta + '/' + fqon + '/environments/' + eid + '/containers/' + container.id;
         console.log("\nSending 'DELETE' request to URL : " + deleteUrl);
         var deleteCon = new java.net.URL(deleteUrl).openConnection();
         deleteCon.setRequestProperty("Authorization", creds);
         deleteCon.setRequestMethod("DELETE");
         var deleteRespCode = deleteCon.getResponseCode();
         console.log("Response Code : " + deleteRespCode);
-        return "SUCCESS";
+        if (deleteRespCode < 300) {
+          return "SUCCESS";
+        } else {
+          console.warn("FAILURE; did not receive 20x from delete")
+        }
     } else {
         console.warn("FAILURE; did not receive 201; will not delete old container")
     }
+    return "FAILED";
 }
