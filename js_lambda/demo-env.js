@@ -1,6 +1,7 @@
 
 var META = null;
 
+
 function setup_demo(args, cred) {
     META = get_meta(args, cred);
     log("found meta: " + JSON.stringify(META));
@@ -8,22 +9,28 @@ function setup_demo(args, cred) {
     var root_org = GET("/root");
     log("found root org:" + root_org.id);
 
+    // find kong provider
+    var kong = list_providers(root_org, ProviderTypes.APIGATEWAY)
+    if (kong.length == 0)
+        return "Could not find any ApiGateway providers";
+    else kong = kong[0];
+
     // TODO: create marathon-dev in /root
     // TODO: empty root[provider.delete] and root[provider.create]
 
-    var base_org = create_org(root_org, "galactic-capital", "Galactic Capital Corporation");
-    log("created new base org: " + base_org.id);
+    var demo_org = create_org(root_org, "galactic-capital", "Galactic Capital Corporation");
+    log("created new base org: " + demo_org.id);
     // TODO: empty root[org.create] and root[org.delete]
 
     // TODO: set galactic-capital[org.create]
     // create and populate demo orgs: hr, it, debt, equity, private-client
     // - each gets workspace ${name}-platform
     // - each platform gets environments dev,qa,prod
-    var hr_demo     = populate_demo_org("hr", "HR Division", base_org);
-    var it_demo     = populate_demo_org("it", "IT Division", base_org);
-    var debt_demo   = populate_demo_org("debt", "Debt Division", base_org);
-    var equity_demo = populate_demo_org("equity", "Equity Division", base_org);
-    var pc_demo     = populate_demo_org("private-client", "Private Client Division", base_org);
+    var hr_demo     = populate_demo_org("hr", "HR Division", demo_org);
+    var it_demo     = populate_demo_org("it", "IT Division", demo_org);
+    var debt_demo   = populate_demo_org("debt", "Debt Division", demo_org);
+    var equity_demo = populate_demo_org("equity", "Equity Division", demo_org);
+    var pc_demo     = populate_demo_org("private-client", "Private Client Division", demo_org);
     // - additionally, equity.galactic-capital gets workspace "trading"
     var trading_wrk  = create_workspace(equity_demo.org, "trading", "Trading application platform");
     var trading_dev  = create_environment(equity_demo.org, trading_wrk, "dev", "Development", EnvironmentTypes.DEVELOPMENT);
@@ -38,13 +45,34 @@ function setup_demo(args, cred) {
     // TODO:     - trading-platform[environment.view]
     // TODO:     - for all envs, [lambda.all,container.all]
 
-    var global_work = create_workspace(root_org, "global", "global workspace");
-    var global_env  = create_environment(root_org, global_work, "global", "global environment");
+    var global_work = create_workspace(demo_org, "global", "global workspace");
+    var global_env  = create_environment(demo_org, global_work, "global", "global environment", EnvironmentTypes.PRODUCTION);
     // TODO: create migrate lambda in "global"
-    var migrate_lambda = create_lambda(root_org, global_env, {
-
+    var migrate_lambda = create_lambda(demo_org, global_env, {
+        description: "",
+        name: "migrate-lambda",
+        properties: {
+            code_type: "package",
+            compressed: false,
+            cpus: 0.,
+            env: {},
+            handler: "migrate-lambda;migrate",
+            headers: {},
+            memory: 512,
+            package_url: "https://raw.githubusercontent.com/GalacticFog/lambda-examples/master/js_lambda/migrate-lambda.js",
+            providers: [
+                {
+                    id: kong.id,
+                    locations: []
+                }
+            ],
+            public: true,
+            runtime: "nodejs",
+            synchronous: false,
+            timeout: 120
+        }
     });
-
+    log("created migrate lambda: " + migrate_lambda.id);
     // TODO: create migration policy in all three environments in equity-platform
 
     return "Created demo environment";
@@ -55,6 +83,11 @@ var EnvironmentTypes = {
     PRODUCTION: "production",
     TEST: "test"
 };
+
+var ProviderTypes = {
+    APIGATEWAY: "ApiGateway",
+    MARATHON: "Marathon"
+}
 
 function populate_demo_org(name, description, base_org) {
     var new_org = create_org(base_org, name, description);
@@ -86,6 +119,12 @@ function log(a) {
     else console.log(a);
 }
 
+function list_providers(org, provider_type) {
+    var endpoint = "/" + org.properties.fqon + "/providers?expand=true";
+    if (provider_type) endpoint = endpoint + "&type=" + provider_type;
+    return GET(endpoint)
+}
+
 function create_org(parent, name, description) {
     var payload = {
         description: description,
@@ -100,6 +139,10 @@ function create_workspace(parent_org, name, description) {
         name: name
     };
     return POST("/" + parent_org.properties.fqon + "/workspaces", payload)
+}
+
+function create_lambda(org, env, lambda_payload) {
+    return POST("/" + org.properties.fqon + "/environments/" + env.id + "/lambdas", lambda_payload);
 }
 
 function create_environment(parent_org, parent_workspace, name, description, type) {
