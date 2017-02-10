@@ -1,9 +1,11 @@
 
 var META = null;
 
+var LOG = new java.lang.StringBuilder();
 
 function setup_demo(args, cred) {
-    META = get_meta(args, cred);
+    log("env: " + java.lang.System.getenv().toString());
+    META = get_meta();
     log("found meta: " + JSON.stringify(META));
 
     var root_org = GET("/root");
@@ -15,12 +17,30 @@ function setup_demo(args, cred) {
         return "Could not find any ApiGateway providers";
     else kong = kong[0];
 
-    // TODO: create marathon-dev in /root
-    // TODO: empty root[provider.delete] and root[provider.create]
-
-    var demo_org = create_org(root_org, "galactic-capital", "Galactic Capital Corporation");
-    log("created new base org: " + demo_org.id);
+    try {
+        var demo_org = create_org(root_org, "galactic-capital", "Galactic Capital Corporation");
+    } catch(code) {
+        if (code == 409) return "Org already exists; delete it and then try again.";
+        else return "Code " + code + " on attempt to create new org.";
+    }
     // TODO: empty root[org.create] and root[org.delete]
+
+    // create marathon-dev provider in new org
+    create_provider(demo_org, {
+            name: "marathon-dev",
+            resource_type: "Gestalt::Configuration::Provider::Marathon",
+            description: "",
+            properties: {
+                locations: [ { name: "dcos-cluster", enabled: true } ],
+                config: {
+                    url: "http://master.mesos/service/marathon-dev",
+                    auth: { scheme: "Basic", username: "open", password: "sesame" },
+                    networks: [ { name: "HOST" }, { name: "BRIDGE" } ]
+                }
+            }
+        }
+    );
+    // TODO: empty root[provider.delete] and root[provider.create]
 
     // TODO: set galactic-capital[org.create]
     // create and populate demo orgs: hr, it, debt, equity, private-client
@@ -37,9 +57,21 @@ function setup_demo(args, cred) {
     var trading_prod = create_environment(equity_demo.org, trading_wrk, "prod", "Production", EnvironmentTypes.PRODUCTION);
     var trading_qa   = create_environment(equity_demo.org, trading_wrk, "qa", "QA", EnvironmentTypes.TEST);
 
-    // TODO: create group trading
-    // TODO: create user jdoe
-    // TODO: put jdoe in trading
+    var trading_grp = create_group(root_org, "trading", "Trading group");
+    var joe_the_trader = create_user(root_org, {
+        description: "Principal Engineer/Trading group",
+        name: "jdoe",
+        properties: {
+            email: "jdoe@galacticfog.com",
+            firstName: "J",
+            gestalt_home: "galactic-capital",
+            lastName: "Doe",
+            password: "joethetrader",
+            phoneNumber: "+15555555555"
+        }
+    });
+    add_user_to_group(root_org, trading_grp, joe_the_trader);
+
     // TODO: give trading the following:
     // TODO:     - trading.galactic-capital[org.view,workspace.view]
     // TODO:     - trading-platform[environment.view]
@@ -47,7 +79,6 @@ function setup_demo(args, cred) {
 
     var global_work = create_workspace(demo_org, "global", "global workspace");
     var global_env  = create_environment(demo_org, global_work, "global", "global environment", EnvironmentTypes.PRODUCTION);
-    // TODO: create migrate lambda in "global"
     var migrate_lambda = create_lambda(demo_org, global_env, {
         description: "",
         name: "migrate-lambda",
@@ -75,7 +106,8 @@ function setup_demo(args, cred) {
     log("created migrate lambda: " + migrate_lambda.id);
     // TODO: create migration policy in all three environments in equity-platform
 
-    return "Created demo environment";
+    log("\nDemo environment complete.")
+    return LOG.toString();
 }
 
 var EnvironmentTypes = {
@@ -87,7 +119,7 @@ var EnvironmentTypes = {
 var ProviderTypes = {
     APIGATEWAY: "ApiGateway",
     MARATHON: "Marathon"
-}
+};
 
 function populate_demo_org(name, description, base_org) {
     var new_org = create_org(base_org, name, description);
@@ -105,18 +137,34 @@ function populate_demo_org(name, description, base_org) {
     }
 }
 
+function get_env(key) {
+    var val = java.lang.System.getenv().get(key);
+    if (!val) throw "Env missing variable " + key;
+    return val;
+}
+
 function get_meta(args, creds) {
-    var args = JSON.parse( args );
-    log("args: " + JSON.stringify(args))
+    // TODO: fix these when vars are working again
+    var api_key = "83580c51-c44a-47b3-8dc5-09b2c6cef924"; // get_env("API_KEY");
+    var api_secret = "cCtJ3H4WCK7jPCOBpQTggLDzFbkePSC71VwIEfb+"; // get_env("API_SECRET");
+    var prehash = api_key + ":" + api_secret;
+    var hash = new java.lang.String(java.util.Base64.getEncoder().encode(prehash.getBytes()));
     return {
-        url: args.meta_url,
-        creds: creds
+        url: "https://meta.demo1.galacticfog.com", // get_env("META_URL"),
+        creds: "Basic " + hash
     }
 }
 
 function log(a) {
-    if (typeof(a) === 'object') console.log(JSON.stringify(a))
-    else console.log(a);
+    var str;
+    if (typeof(a) === 'object') {
+        str = JSON.stringify(a);
+    }
+    else {
+        str = a.toString();
+    }
+    console.log(str);
+    LOG.append(str);
 }
 
 function list_providers(org, provider_type) {
@@ -125,27 +173,58 @@ function list_providers(org, provider_type) {
     return GET(endpoint)
 }
 
-function create_org(parent, name, description) {
+function fqon(org) {
+    return org.properties.fqon;
+}
+
+function create_group(parent_org, name, desc) {
+    log("Creating group " + name);
+    return POST("/" + fqon(parent_org) + "/groups", {
+        name: name,
+        description: desc
+    });
+}
+
+function create_user(parent_org, account_payload) {
+    log("Creating user " + account_payload.name);
+    return POST("/" + fqon(parent_org) + "/users", account_payload);
+}
+
+function add_user_to_group(parent_org, group, user) {
+    log("Adding user " + user.name + " to group " + group.name);
+    PATCH("/" + fqon(parent_org) + "/groups/" + group.id + "/users?id=" + user.id);
+}
+
+function create_provider(parent_org, provider_payload) {
+    log("Creating provider " + provider_payload.name);
+    return POST("/" + fqon(parent_org) + "/providers", provider_payload);
+}
+
+function create_org(parent_org, name, description) {
+    log("Creating org " + name);
     var payload = {
         description: description,
         name: name
     };
-    return POST("/" + parent.properties.fqon, payload)
+    return POST("/" + fqon(parent_org), payload)
 }
 
 function create_workspace(parent_org, name, description) {
+    log("Creating workspace " + name);
     var payload = {
         description: description,
         name: name
     };
-    return POST("/" + parent_org.properties.fqon + "/workspaces", payload)
+    return POST("/" + fqon(parent_org) + "/workspaces", payload)
 }
 
-function create_lambda(org, env, lambda_payload) {
-    return POST("/" + org.properties.fqon + "/environments/" + env.id + "/lambdas", lambda_payload);
+function create_lambda(parent_org, parent_env, lambda_payload) {
+    log("Creating lambda " + lambda_payload.name);
+    return POST("/" + parent_org.properties.fqon + "/environments/" + parent_env.id + "/lambdas", lambda_payload);
 }
 
 function create_environment(parent_org, parent_workspace, name, description, type) {
+    log("Creating environment " + name);
     var payload = {
         description: description,
         name: name,
@@ -157,7 +236,11 @@ function create_environment(parent_org, parent_workspace, name, description, typ
 }
 
 function jsonFromConn(conn) {
-    log("Response Code : " + conn.getResponseCode());
+    var code = conn.getResponseCode();
+    if (code >= 300) {
+        log("WARNING: response code : " + code);
+        throw code;
+    }
     var reader = new java.io.BufferedReader(new java.io.InputStreamReader(conn.getInputStream()));
     var result = new java.lang.StringBuilder();
     var line;
@@ -167,27 +250,42 @@ function jsonFromConn(conn) {
     return JSON.parse(result.toString());
 }
 
-function GET(endpoint) {
+function REST_JSON(method, endpoint, payload) {
     var url = META.url + endpoint;
-    log("GET " + url);
+    // log(method + " " + url);
     var conn = new java.net.URL(url).openConnection();
-    conn.setDoOutput( false );
     conn.setRequestProperty("Authorization", META.creds);
-    conn.setRequestMethod("GET");
+    conn.method = method;
+    //if (method === "PATCH") {
+    //    // i cannot believe i have to do this in 2017
+    //    conn.setRequestProperty("X-HTTP-Method-Override", "PATCH");
+    //    conn.setRequestMethod("POST");
+    //} else {
+    //    conn.setRequestMethod(method);
+    //}
+    if (payload) {
+        conn.setDoOutput( true );
+        conn.setRequestProperty("Content-Type", "application/json");
+        var wr = new java.io.DataOutputStream(conn.getOutputStream());
+        wr.writeBytes(JSON.stringify(payload));
+        wr.flush();
+        wr.close();
+    } else {
+        conn.setDoOutput( false );
+    }
     return jsonFromConn(conn);
 }
 
-function POST(endpoint, payload) {
-    var url = META.url + endpoint;
-    log("POST " + url);
-    var conn = new java.net.URL(url).openConnection();
-    conn.setDoOutput( true );
-    conn.setRequestProperty("Authorization", META.creds);
-    conn.setRequestMethod("POST");
-    conn.setRequestProperty("Content-Type", "application/json");
-    var wr = new java.io.DataOutputStream(conn.getOutputStream());
-    wr.writeBytes(JSON.stringify(payload));
-    wr.flush();
-    wr.close();
-    return jsonFromConn(conn);
+function GET(endpoint) {
+    return REST_JSON("GET", endpoint);
 }
+
+function POST(endpoint, payload) {
+    return REST_JSON("POST", endpoint, payload);
+}
+
+function PATCH(endpoint, payload) {
+    return REST_JSON("PATCH", endpoint, payload);
+}
+
+
