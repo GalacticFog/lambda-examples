@@ -4,7 +4,6 @@ var META = null;
 var LOG = new java.lang.StringBuilder();
 
 function setup_demo(args, cred) {
-    log("env: " + java.lang.System.getenv().toString());
     META = get_meta();
     log("found meta: " + JSON.stringify(META));
 
@@ -17,13 +16,28 @@ function setup_demo(args, cred) {
         return "Could not find any ApiGateway providers";
     else kong = kong[0];
 
+    var trading_grp = create_group(root_org, "trading", "Trading group");
+    var joe_the_trader = create_user(root_org, {
+        description: "Principal Engineer/Trading group",
+        name: "jdoe",
+        properties: {
+            email: "jdoe@galacticfog.com",
+            firstName: "J",
+            gestalt_home: "galactic-capital",
+            lastName: "Doe",
+            password: "joethetrader",
+            phoneNumber: "+15555555555"
+        }
+    });
+    // TODO: finish when PATCH is working
+    // add_user_to_group(root_org, trading_grp, joe_the_trader);
+
     try {
         var demo_org = create_org(root_org, "galactic-capital", "Galactic Capital Corporation");
     } catch(code) {
         if (code == 409) return "Org already exists; delete it and then try again.";
         else return "Code " + code + " on attempt to create new org.";
     }
-    // TODO: empty root[org.create] and root[org.delete]
 
     // create marathon-dev provider in new org
     create_provider(demo_org, {
@@ -40,9 +54,7 @@ function setup_demo(args, cred) {
             }
         }
     );
-    // TODO: empty root[provider.delete] and root[provider.create]
 
-    // TODO: set galactic-capital[org.create]
     // create and populate demo orgs: hr, it, debt, equity, private-client
     // - each gets workspace ${name}-platform
     // - each platform gets environments dev,qa,prod
@@ -57,25 +69,15 @@ function setup_demo(args, cred) {
     var trading_prod = create_environment(equity_demo.org, trading_wrk, "prod", "Production", EnvironmentTypes.PRODUCTION);
     var trading_qa   = create_environment(equity_demo.org, trading_wrk, "qa", "QA", EnvironmentTypes.TEST);
 
-    var trading_grp = create_group(root_org, "trading", "Trading group");
-    var joe_the_trader = create_user(root_org, {
-        description: "Principal Engineer/Trading group",
-        name: "jdoe",
-        properties: {
-            email: "jdoe@galacticfog.com",
-            firstName: "J",
-            gestalt_home: "galactic-capital",
-            lastName: "Doe",
-            password: "joethetrader",
-            phoneNumber: "+15555555555"
-        }
-    });
-    add_user_to_group(root_org, trading_grp, joe_the_trader);
-
-    // TODO: give trading the following:
-    // TODO:     - trading.galactic-capital[org.view,workspace.view]
-    // TODO:     - trading-platform[environment.view]
-    // TODO:     - for all envs, [lambda.all,container.all]
+    add_entitlement(root_org, demo_org, "org.view", trading_grp);
+    add_entitlement(equity_demo.org, trading_wrk, "workspace.view", trading_grp);
+    add_entitlement(equity_demo.org, trading_wrk, "environment.view", trading_grp);
+    add_entitlement(equity_demo.org, trading_dev, "container.create", trading_grp);
+    add_entitlement(equity_demo.org, trading_prod, "container.create", trading_grp);
+    add_entitlement(equity_demo.org, trading_qa, "container.create", trading_grp);
+    add_entitlement(equity_demo.org, trading_dev, "lambda.create", trading_grp);
+    add_entitlement(equity_demo.org, trading_prod, "lambda.create", trading_grp);
+    add_entitlement(equity_demo.org, trading_qa, "lambda.create", trading_grp);
 
     var global_work = create_workspace(demo_org, "global", "global workspace");
     var global_env  = create_environment(demo_org, global_work, "global", "global environment", EnvironmentTypes.PRODUCTION);
@@ -147,11 +149,10 @@ function get_meta(args, creds) {
     // TODO: fix these when vars are working again
     var api_key = "83580c51-c44a-47b3-8dc5-09b2c6cef924"; // get_env("API_KEY");
     var api_secret = "cCtJ3H4WCK7jPCOBpQTggLDzFbkePSC71VwIEfb+"; // get_env("API_SECRET");
-    var prehash = api_key + ":" + api_secret;
-    var hash = new java.lang.String(java.util.Base64.getEncoder().encode(prehash.getBytes()));
+    var login_hash = javax.xml.bind.DatatypeConverter.printBase64Binary((api_key + ":" + api_secret).getBytes());
     return {
         url: "https://meta.demo1.galacticfog.com", // get_env("META_URL"),
-        creds: "Basic " + hash
+        creds: "Basic " + login_hash
     }
 }
 
@@ -164,7 +165,7 @@ function log(a) {
         str = a.toString();
     }
     console.log(str);
-    LOG.append(str);
+    LOG.append(str + "\n");
 }
 
 function list_providers(org, provider_type) {
@@ -178,15 +179,34 @@ function fqon(org) {
 }
 
 function create_group(parent_org, name, desc) {
-    log("Creating group " + name);
+    log("Creating group " + parent_org.name + "/" + name);
     return POST("/" + fqon(parent_org) + "/groups", {
         name: name,
         description: desc
     });
 }
 
+
+function find_entitlement(base_org, resource, entitlement_name) {
+    var ents = GET("/" + fqon(base_org) + "/resources/" + resource.id + "/entitlements?expand=true");
+    return ents.find(function (el) {
+        return el.name == entitlement_name;
+    })
+}
+
+function add_entitlement(base_org, resource, entitlement_name, identity) {
+    var ent = find_entitlement(base_org, resource, entitlement_name);
+    if (!ent) {
+        log("could not locate entitlement " + entitlement_name + " on resource " + fqon(base_org) + "/" + resource.id);
+        return;
+    }
+    log("found entitlement");
+    log(ent);
+    // TODO: finish
+}
+
 function create_user(parent_org, account_payload) {
-    log("Creating user " + account_payload.name);
+    log("Creating user " + parent_org.name + "/" + account_payload.name);
     return POST("/" + fqon(parent_org) + "/users", account_payload);
 }
 
@@ -201,7 +221,7 @@ function create_provider(parent_org, provider_payload) {
 }
 
 function create_org(parent_org, name, description) {
-    log("Creating org " + name);
+    log("Creating org " + parent_org.name + "/" + name);
     var payload = {
         description: description,
         name: name
@@ -210,7 +230,7 @@ function create_org(parent_org, name, description) {
 }
 
 function create_workspace(parent_org, name, description) {
-    log("Creating workspace " + name);
+    log("Creating workspace " + parent_org.name + "/" + name);
     var payload = {
         description: description,
         name: name
@@ -219,12 +239,12 @@ function create_workspace(parent_org, name, description) {
 }
 
 function create_lambda(parent_org, parent_env, lambda_payload) {
-    log("Creating lambda " + lambda_payload.name);
+    log("Creating lambda " + parent_env.name + "/" + lambda_payload.name);
     return POST("/" + parent_org.properties.fqon + "/environments/" + parent_env.id + "/lambdas", lambda_payload);
 }
 
 function create_environment(parent_org, parent_workspace, name, description, type) {
-    log("Creating environment " + name);
+    log("Creating environment " + parent_workspace.name + "/" + name);
     var payload = {
         description: description,
         name: name,
@@ -255,14 +275,18 @@ function REST_JSON(method, endpoint, payload) {
     // log(method + " " + url);
     var conn = new java.net.URL(url).openConnection();
     conn.setRequestProperty("Authorization", META.creds);
-    conn.method = method;
-    //if (method === "PATCH") {
-    //    // i cannot believe i have to do this in 2017
-    //    conn.setRequestProperty("X-HTTP-Method-Override", "PATCH");
-    //    conn.setRequestMethod("POST");
-    //} else {
-    //    conn.setRequestMethod(method);
-    //}
+    if (method === "PATCH") {
+       // i cannot believe i have to do this in 2017...
+       var delegate = sun.net.www.protocol.https.HttpsURLConnectionImpl.class.getDeclaredField("delegate");
+       delegate.setAccessible(true);
+       var target = delegate.get(conn);
+       var f = java.net.HttpURLConnection.class.getDeclaredField("method");
+       f.setAccessible(true);
+       f.set(target, method);
+       console.log("connection method overrideen to " + conn.getRequestMethod());
+    } else {
+       conn.setRequestMethod(method);
+    }
     if (payload) {
         conn.setDoOutput( true );
         conn.setRequestProperty("Content-Type", "application/json");
