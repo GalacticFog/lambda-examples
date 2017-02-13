@@ -11,7 +11,7 @@ function setup_demo(args, cred) {
     log("found root org:" + root_org.id);
 
     // find kong provider
-    var kong = list_providers(root_org, ProviderTypes.APIGATEWAY)
+    var kong = list_providers(root_org, ProviderTypes.APIGATEWAY);
     if (kong.length == 0)
         return "Could not find any ApiGateway providers";
     else kong = kong[0];
@@ -69,15 +69,15 @@ function setup_demo(args, cred) {
     var trading_prod = create_environment(equity_demo.org, trading_wrk, "prod", "Production", EnvironmentTypes.PRODUCTION);
     var trading_qa   = create_environment(equity_demo.org, trading_wrk, "qa", "QA", EnvironmentTypes.TEST);
 
-    add_entitlement(root_org, demo_org, "org.view", trading_grp);
-    add_entitlement(equity_demo.org, trading_wrk, "workspace.view", trading_grp);
-    add_entitlement(equity_demo.org, trading_wrk, "environment.view", trading_grp);
-    add_entitlement(equity_demo.org, trading_dev, "container.create", trading_grp);
+    add_entitlement(demo_org,           demo_org,  "org.view", trading_grp);
+    add_entitlement(equity_demo.org, trading_wrk,  "workspace.view", trading_grp);
+    add_entitlement(equity_demo.org, trading_wrk,  "environment.view", trading_grp);
+    add_entitlement(equity_demo.org, trading_dev,  "container.create", trading_grp);
     add_entitlement(equity_demo.org, trading_prod, "container.create", trading_grp);
-    add_entitlement(equity_demo.org, trading_qa, "container.create", trading_grp);
-    add_entitlement(equity_demo.org, trading_dev, "lambda.create", trading_grp);
+    add_entitlement(equity_demo.org, trading_qa,   "container.create", trading_grp);
+    add_entitlement(equity_demo.org, trading_dev,  "lambda.create", trading_grp);
     add_entitlement(equity_demo.org, trading_prod, "lambda.create", trading_grp);
-    add_entitlement(equity_demo.org, trading_qa, "lambda.create", trading_grp);
+    add_entitlement(equity_demo.org, trading_qa,   "lambda.create", trading_grp);
 
     var global_work = create_workspace(demo_org, "global", "global workspace");
     var global_env  = create_environment(demo_org, global_work, "global", "global environment", EnvironmentTypes.PRODUCTION);
@@ -147,8 +147,8 @@ function get_env(key) {
 
 function get_meta(args, creds) {
     // TODO: fix these when vars are working again
-    var api_key = "83580c51-c44a-47b3-8dc5-09b2c6cef924"; // get_env("API_KEY");
-    var api_secret = "cCtJ3H4WCK7jPCOBpQTggLDzFbkePSC71VwIEfb+"; // get_env("API_SECRET");
+    var api_key = "f380eff1-fc2d-43ea-b0f9-478f59be15f3"; // get_env("API_KEY");
+    var api_secret = "BGlUV7kbDMWVs4ffLFBBJNZoTG+B+ui+PmDZgSMN"; // get_env("API_SECRET");
     var login_hash = javax.xml.bind.DatatypeConverter.printBase64Binary((api_key + ":" + api_secret).getBytes());
     return {
         url: "https://meta.demo1.galacticfog.com", // get_env("META_URL"),
@@ -171,7 +171,7 @@ function log(a) {
 function list_providers(org, provider_type) {
     var endpoint = "/" + org.properties.fqon + "/providers?expand=true";
     if (provider_type) endpoint = endpoint + "&type=" + provider_type;
-    return GET(endpoint)
+    return GET(endpoint);
 }
 
 function fqon(org) {
@@ -189,9 +189,8 @@ function create_group(parent_org, name, desc) {
 
 function find_entitlement(base_org, resource, entitlement_name) {
     var ents = GET("/" + fqon(base_org) + "/resources/" + resource.id + "/entitlements?expand=true");
-    return ents.find(function (el) {
-        return el.name == entitlement_name;
-    })
+    for each (e in ents) if (e.properties.action == entitlement_name) return e;
+    return null;
 }
 
 function add_entitlement(base_org, resource, entitlement_name, identity) {
