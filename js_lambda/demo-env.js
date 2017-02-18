@@ -3,6 +3,10 @@ var META = null;
 
 var LOG = new java.lang.StringBuilder();
 
+var AsyncHttpClient = Java.type('com.ning.http.client.AsyncHttpClient');
+var client = new AsyncHttpClient();
+var CompletableFuture = Java.type('java.util.concurrent.CompletableFuture');
+
 function setup_demo(args, cred) {
     META = get_meta();
     log("found meta: " + JSON.stringify(META));
@@ -29,8 +33,7 @@ function setup_demo(args, cred) {
             phoneNumber: "+15555555555"
         }
     });
-    // TODO: finish when PATCH is working
-    // add_user_to_group(root_org, trading_grp, joe_the_trader);
+    add_user_to_group(root_org, trading_grp, joe_the_trader);
 
     try {
         var demo_org = create_org(root_org, "galactic-capital", "Galactic Capital Corporation");
@@ -40,7 +43,7 @@ function setup_demo(args, cred) {
     }
 
     // create marathon-dev provider in new org
-    create_provider(demo_org, {
+    var dev_provider = create_provider(demo_org, {
             name: "marathon-dev",
             resource_type: "Gestalt::Configuration::Provider::Marathon",
             description: "",
@@ -54,30 +57,33 @@ function setup_demo(args, cred) {
             }
         }
     );
+    // TODO: this is a test, doesn't actually need to be synchronous
+    var updatedEntitlement = add_entitlement(root_org, root_org, "provider.view", trading_grp, false);
+    log("root[provider.view] was entitlement " + updatedEntitlement.id);
 
-    // create and populate demo orgs: hr, it, debt, equity, private-client
-    // - each gets workspace ${name}-platform
-    // - each platform gets environments dev,qa,prod
-    var hr_demo     = populate_demo_org("hr", "HR Division", demo_org);
-    var it_demo     = populate_demo_org("it", "IT Division", demo_org);
-    var debt_demo   = populate_demo_org("debt", "Debt Division", demo_org);
-    var equity_demo = populate_demo_org("equity", "Equity Division", demo_org);
+    // create and populate demo sub-orgs: hr, it, debt, equity, private-client
+    var hr_demo     = populate_demo_org("hr",             "HR Division", demo_org);
+    var it_demo     = populate_demo_org("it",             "IT Division", demo_org);
+    var debt_demo   = populate_demo_org("debt",           "Debt Division", demo_org);
+    var equity_demo = populate_demo_org("equity",         "Equity Division", demo_org);
     var pc_demo     = populate_demo_org("private-client", "Private Client Division", demo_org);
-    // - additionally, equity.galactic-capital gets workspace "trading"
+
+    // additionally, equity.galactic-capital gets workspace "trading"
     var trading_wrk  = create_workspace(equity_demo.org, "trading", "Trading application platform");
     var trading_dev  = create_environment(equity_demo.org, trading_wrk, "dev", "Development", EnvironmentTypes.DEVELOPMENT);
     var trading_prod = create_environment(equity_demo.org, trading_wrk, "prod", "Production", EnvironmentTypes.PRODUCTION);
-    var trading_qa   = create_environment(equity_demo.org, trading_wrk, "qa", "QA", EnvironmentTypes.TEST);
+    var trading_qa   = create_environment(equity_demo.org, trading_wrk, "qa",   "QA",         EnvironmentTypes.TEST);
 
-    add_entitlement(demo_org,           demo_org,  "org.view", trading_grp);
-    add_entitlement(equity_demo.org, trading_wrk,  "workspace.view", trading_grp);
-    add_entitlement(equity_demo.org, trading_wrk,  "environment.view", trading_grp);
-    add_entitlement(equity_demo.org, trading_dev,  "container.create", trading_grp);
-    add_entitlement(equity_demo.org, trading_prod, "container.create", trading_grp);
-    add_entitlement(equity_demo.org, trading_qa,   "container.create", trading_grp);
-    add_entitlement(equity_demo.org, trading_dev,  "lambda.create", trading_grp);
-    add_entitlement(equity_demo.org, trading_prod, "lambda.create", trading_grp);
-    add_entitlement(equity_demo.org, trading_qa,   "lambda.create", trading_grp);
+    var fUptEnt = add_entitlement(demo_org,        demo_org,     "org.view",         trading_grp, true);
+    log("this entitlement better be a future: " + fUptEnt);
+    add_entitlement(equity_demo.org, trading_wrk,  "workspace.view",   trading_grp, true);
+    add_entitlement(equity_demo.org, trading_wrk,  "environment.view", trading_grp, true);
+    for each (env in [trading_dev, trading_prod, trading_qa]) {
+        for each (ent in ["container.create", "container.view", "container.update", "container.delete", "container.scale", "container.migrate",
+                          "lambda.create", "lambda.view", "lambda.update", "lambda.delete"]) {
+            add_entitlement(equity_demo.org, env, ent, trading_grp, true);
+        }
+    }
 
     var global_work = create_workspace(demo_org, "global", "global workspace");
     var global_env  = create_environment(demo_org, global_work, "global", "global environment", EnvironmentTypes.PRODUCTION);
@@ -96,7 +102,11 @@ function setup_demo(args, cred) {
             providers: [
                 {
                     id: kong.id,
-                    locations: []
+                    locations: kong.properties.locations.map(function(l) {return {
+                        name: l.name,
+                        enabled: l.enabled,
+                        selected: true
+                    }})
                 }
             ],
             public: true,
@@ -106,7 +116,9 @@ function setup_demo(args, cred) {
         }
     });
     log("created migrate lambda: " + migrate_lambda.id);
-    // TODO: create migration policy in all three environments in equity-platform
+    create_migrate_policy(equity_demo.org, equity_demo.dev,  migrate_lambda);
+    create_migrate_policy(equity_demo.org, equity_demo.prod, migrate_lambda);
+    create_migrate_policy(equity_demo.org, equity_demo.qa,   migrate_lambda);
 
     log("\nDemo environment complete.")
     return LOG.toString();
@@ -146,12 +158,11 @@ function get_env(key) {
 }
 
 function get_meta(args, creds) {
-    // TODO: fix these when vars are working again
-    var api_key = "f380eff1-fc2d-43ea-b0f9-478f59be15f3"; // get_env("API_KEY");
-    var api_secret = "BGlUV7kbDMWVs4ffLFBBJNZoTG+B+ui+PmDZgSMN"; // get_env("API_SECRET");
+    var api_key = get_env("API_KEY");
+    var api_secret = get_env("API_SECRET");
     var login_hash = javax.xml.bind.DatatypeConverter.printBase64Binary((api_key + ":" + api_secret).getBytes());
     return {
-        url: "https://meta.demo1.galacticfog.com", // get_env("META_URL"),
+        url: get_env("META_URL"),
         creds: "Basic " + login_hash
     }
 }
@@ -186,22 +197,79 @@ function create_group(parent_org, name, desc) {
     });
 }
 
-
-function find_entitlement(base_org, resource, entitlement_name) {
-    var ents = GET("/" + fqon(base_org) + "/resources/" + resource.id + "/entitlements?expand=true");
-    for each (e in ents) if (e.properties.action == entitlement_name) return e;
-    return null;
+function find_entitlement_async(base_org, resource, entitlement_name) {
+    var fEnts = GET("/" + fqon(base_org) + "/resources/" + resource.id + "/entitlements?expand=true", true);
+    return fEnts.thenApply(function(ents) {
+        for each (e in ents) if (e.properties.action == entitlement_name) return e;
+        return null;
+    });
 }
 
-function add_entitlement(base_org, resource, entitlement_name, identity) {
-    var ent = find_entitlement(base_org, resource, entitlement_name);
-    if (!ent) {
-        log("could not locate entitlement " + entitlement_name + " on resource " + fqon(base_org) + "/" + resource.id);
-        return;
-    }
-    log("found entitlement");
-    log(ent);
-    // TODO: finish
+function contains(arr, v) {
+    for each (a in arr) if (a == v) return true;
+    return false;
+}
+
+function disp(r) {
+    return r.name + "(" + r.id + ")"
+}
+
+function add_entitlement(base_org, resource, entitlement_name, identity, async) {
+    var fEnt = find_entitlement_async(base_org, resource, entitlement_name);
+    var fEntUpdate = fEnt.thenCompose(function(ent) {
+        if (!ent) {
+            log("could not locate entitlement " + entitlement_name + " on resource " + disp(resource));
+            return java.util.concurrent.completedFuture(null);
+        }
+        var cur_ids = ent.properties.identities.map(function(i) {return i.id;});
+        if (contains(cur_ids, identity.id)) {
+            log("entitlement " + resource.name + "[" + entitlement_name + "] already contains identity " + disp(identity));
+            return java.util.concurrent.completedFuture(null);
+        }
+        var new_ent = {
+            id: ent.id,
+            name: ent.name,
+            properties: {
+                action: ent.properties.action,
+                identities: cur_ids.concat(identity.id)
+            }
+        };
+        log("updating entitlement " + resource.name + "[" + entitlement_name + "] with " + disp(identity));
+        switch (resource.resource_type) {
+            case "Gestalt::Resource::Environment":
+                return PUT("/" + fqon(base_org) + "/environments/" + resource.id + "/entitlements/" + ent.id, new_ent, true);
+            case "Gestalt::Resource::Workspace":
+                return PUT("/" + fqon(base_org) + "/workspaces/" + resource.id + "/entitlements/" + ent.id, new_ent, true);
+            case "Gestalt::Resource::Organization":
+                return PUT("/" + fqon(resource) + "/entitlements/" + ent.id, new_ent, true);
+            default:
+                return PUT("/" + fqon(base_org) + "/entitlements/" + ent.id, new_ent, true);
+        }
+    });
+    var _async = async ? async : false; // just being explicit that the default here is 'false'
+    if (_async) return fEntUpdate;
+    return fEntUpdate.get();
+}
+
+function create_migrate_policy(base_org, environment, lambda) {
+    log("creating new migrate policy in " + environment.name);
+    var pol = POST("/" + fqon(base_org) + "/environments/" + environment.id + "/policies", {
+        name: "default-migrate-policy",
+        description: "default container migration policy",
+        properties: {}
+    });
+
+    log("creating migrate event rule in migrate policy " + pol.id + " against lambda " + lambda.id);
+    POST("/" + fqon(base_org) + "/policies/" + pol.id + "/rules", {
+        name: "migration-handler",
+        description: "execute migrate lambda on container.migrate.pre",
+        resource_type: "event",
+        properties: {
+            actions: [ "container.migrate.pre" ],
+            eval_logic: {},
+            lambda: lambda.id
+        }
+    });
 }
 
 function create_user(parent_org, account_payload) {
@@ -254,61 +322,52 @@ function create_environment(parent_org, parent_workspace, name, description, typ
     return POST("/" + parent_org.properties.fqon + "/workspaces/" + parent_workspace.id + "/environments", payload)
 }
 
-function jsonFromConn(conn) {
-    var code = conn.getResponseCode();
+function _handleResponse(response) {
+    var code = response.getStatusCode();
+    var body = response.getResponseBody();
     if (code >= 300) {
-        log("WARNING: response code : " + code);
+        log("WARNING: status code : " + code);
+        log("response: " + body);
         throw code;
     }
-    var reader = new java.io.BufferedReader(new java.io.InputStreamReader(conn.getInputStream()));
-    var result = new java.lang.StringBuilder();
-    var line;
-    while((line = reader.readLine()) != null) {
-        result.append(line);
-    }
-    return JSON.parse(result.toString());
+    if (response.getContentType().startsWith("application/json")) return JSON.parse(body);
+    return body;
 }
 
-function REST_JSON(method, endpoint, payload) {
+function _REST_JSON(method, endpoint, payload, async) {
     var url = META.url + endpoint;
+    var pc = client.prepareConnect(url)
+        .setMethod(method)
+        .addHeader("Authorization", META.creds);
     // log(method + " " + url);
-    var conn = new java.net.URL(url).openConnection();
-    conn.setRequestProperty("Authorization", META.creds);
-    if (method === "PATCH") {
-       // i cannot believe i have to do this in 2017...
-       var delegate = sun.net.www.protocol.https.HttpsURLConnectionImpl.class.getDeclaredField("delegate");
-       delegate.setAccessible(true);
-       var target = delegate.get(conn);
-       var f = java.net.HttpURLConnection.class.getDeclaredField("method");
-       f.setAccessible(true);
-       f.set(target, method);
-       console.log("connection method overrideen to " + conn.getRequestMethod());
-    } else {
-       conn.setRequestMethod(method);
-    }
     if (payload) {
-        conn.setDoOutput( true );
-        conn.setRequestProperty("Content-Type", "application/json");
-        var wr = new java.io.DataOutputStream(conn.getOutputStream());
-        wr.writeBytes(JSON.stringify(payload));
-        wr.flush();
-        wr.close();
-    } else {
-        conn.setDoOutput( false );
+        pc = pc.setBody(JSON.stringify(payload)).addHeader("Content-Type", "application/json")
     }
-    return jsonFromConn(conn);
+    var _async = async ? async : false; // just being explicit that the default here is 'false'
+    if (_async) {
+        var cf = new CompletableFuture();
+        pc.execute(new com.ning.http.client.AsyncCompletionHandler({
+            onCompleted: function(response) {
+                cf.complete(_handleResponse(response));
+            }
+        }));
+        return cf;
+    }
+    return _handleResponse(pc.execute().get());
 }
 
-function GET(endpoint) {
-    return REST_JSON("GET", endpoint);
+function GET(endpoint, async) {
+    return _REST_JSON("GET", endpoint, null, async);
 }
 
 function POST(endpoint, payload) {
-    return REST_JSON("POST", endpoint, payload);
+    return _REST_JSON("POST", endpoint, payload);
+}
+
+function PUT(endpoint, payload, async) {
+    return _REST_JSON("PUT", endpoint, payload, async);
 }
 
 function PATCH(endpoint, payload) {
-    return REST_JSON("PATCH", endpoint, payload);
+    return _REST_JSON("PATCH", endpoint, payload);
 }
-
-
