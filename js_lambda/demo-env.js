@@ -5,33 +5,87 @@ var META   = null;
 var LOG    = new java.lang.StringBuilder();
 var client = new AsyncHttpClient();
 
+function cleanup_demo(/* arguments, credentials */) {
+    META = get_meta();
+    log("[init] found meta: " + META.url);
+    var root_org = find_org("root");
+    log("[init] found root: " + root_org.id);
+    log("")
+
+    var jdoe = find_user(root_org, "jdoe");
+    if (jdoe) {
+        delete_user(root_org, jdoe);
+    } else {
+        log("did not find user 'jdoe'");
+    }
+    log("")
+
+    var trading_grp = find_group(root_org, "trading");
+    if (trading_grp) {
+        delete_group(root_org, trading_grp);
+    } else {
+        log("did not find group 'trading'");
+    }
+    log("")
+
+    var demo_org = find_org("galactic-capital");
+    if (demo_org) {
+        // do this async, because it takes a long time
+        delete_org(demo_org, FORCE_DELETE, DO_ASYNC);
+    } else {
+        log("did not find org 'galactic-capital'");
+    }
+    log("")
+
+    log("Demo environment removed");
+    return LOG.toString();
+}
+
 function setup_demo(/* arguments, credentials */) {
     META = get_meta();
-    log("found meta: " + JSON.stringify(META));
+    log("[init] found meta: " + META.url);
 
-    var root_org = find_org("/root");
-    log("found root org:" + root_org.id);
+    var root_org = find_org("root");
+    log("[init] found root org:" + root_org.id);
 
     // find kong provider
     var kong = list_providers(root_org, ProviderTypes.APIGATEWAY);
-    if (kong.length == 0)
-        return "Could not find any ApiGateway providers";
+    if (kong.length == 0) {
+        log("error: Could not find any ApiGateway providers");
+        return LOG.toString();
+    }
     else kong = kong[0];
+    log("")
 
-    var trading_grp = create_group(root_org, "trading", "Trading group");
-    var joe_the_trader = create_user(root_org, {
-        description: "Principal Engineer (Trading group)",
-        name: "jdoe",
-        properties: {
-            firstName: "J",
-            lastName: "Doe",
-            password: "joethetrader",
-            email: "jdoe@galacticfog.com",
-            gestalt_home: "galactic-capital",
-            phoneNumber: "+15555555555"
-        }
-    });
+    try {
+        var trading_grp = create_group(root_org, "trading", "Trading group");
+    } catch(err) {
+        if (err == 409) {
+            log("group 'trading' already existed");
+            return LOG.toString();
+        } else throw err;
+    }
+    try {
+        var joe_the_trader = create_user(root_org, {
+            description: "Principal Engineer (Trading group)",
+            name: "jdoe",
+            properties: {
+                firstName: "J",
+                lastName: "Doe",
+                password: "joethetrader",
+                email: "jdoe@galacticfog.com",
+                gestalt_home: "galactic-capital",
+                phoneNumber: "+15555555555"
+            }
+        });
+    } catch(err) {
+        if (err == 409) {
+            log("user 'jdoe' already existed");
+            return LOG.toString();
+        } else throw err;
+    }
     add_user_to_group(root_org, trading_grp, joe_the_trader);
+    log("")
 
     try {
         var demo_org = create_org(root_org, "galactic-capital", "Galactic Capital Corporation");
@@ -55,32 +109,34 @@ function setup_demo(/* arguments, credentials */) {
             }
         }
     );
-    add_entitlement(root_org, root_org, "provider.view", trading_grp, true);
+    add_entitlement(root_org, root_org, "provider.view", trading_grp, DO_ASYNC);
+    log("")
 
     // create and populate demo sub-orgs: hr, it, debt, equity, private-client
-    var fEquityDiv = populate_demo_org("equity",         "Equity Division",         demo_org);
-    var fHrDiv     = populate_demo_org("hr",             "HR Division",             demo_org);
-    var fItDiv     = populate_demo_org("it",             "IT Division",             demo_org);
-    var fDebtDiv   = populate_demo_org("debt",           "Debt Division",           demo_org);
-    var fPCDiv     = populate_demo_org("private-client", "Private Client Division", demo_org);
+    var equityDemo = populate_demo_org("equity",         "Equity Division",         demo_org);
+    var HrDemo     = populate_demo_org("hr",             "HR Division",             demo_org);
+    var ItDemo     = populate_demo_org("it",             "IT Division",             demo_org);
+    var DebtDemo   = populate_demo_org("debt",           "Debt Division",           demo_org);
+    var PCDemo     = populate_demo_org("private-client", "Private Client Division", demo_org);
 
     // additionally, equity.galactic-capital gets workspace "trading"
-    var equityDiv = fEquityDiv.get();
+    var equityDiv = equityDemo.fOrg.get();
     var trading_wrk  = create_workspace(equityDiv, "trading", "Trading application platform");
     var trading_dev  = create_environment(equityDiv, trading_wrk, "dev", "Development", EnvironmentTypes.DEVELOPMENT);
     var trading_prod = create_environment(equityDiv, trading_wrk, "prod", "Production", EnvironmentTypes.PRODUCTION);
     var trading_qa   = create_environment(equityDiv, trading_wrk, "qa",   "QA",         EnvironmentTypes.TEST);
 
-    add_entitlement(demo_org,  demo_org,     "org.view",         trading_grp, true);
-    add_entitlement(equityDiv, trading_wrk,  "workspace.view",   trading_grp, true);
-    add_entitlement(equityDiv, trading_wrk,  "environment.view", trading_grp, true);
+    add_entitlement(demo_org,  demo_org,     "org.view",         trading_grp, DO_ASYNC);
+    add_entitlement(equityDiv, trading_wrk,  "workspace.view",   trading_grp, DO_ASYNC);
+    add_entitlement(equityDiv, trading_wrk,  "environment.view", trading_grp, DO_ASYNC);
     for each (env in [trading_dev, trading_prod, trading_qa]) {
         for each (ent in ["container.create", "container.view", "container.update", "container.delete", "container.scale", "container.migrate",
                           "lambda.create", "lambda.view", "lambda.update", "lambda.delete"]) {
-            add_entitlement(equityDiv, env, ent, trading_grp, true);
+            add_entitlement(equityDiv, env, ent, trading_grp, DO_ASYNC);
         }
     }
 
+    log("")
     var global_work = create_workspace(demo_org, "global", "global workspace");
     var global_env  = create_environment(demo_org, global_work, "global", "global environment", EnvironmentTypes.PRODUCTION);
     var migrate_lambda = create_lambda(demo_org, global_env, {
@@ -111,10 +167,10 @@ function setup_demo(/* arguments, credentials */) {
             timeout: 120
         }
     });
-    log("created migrate lambda: " + migrate_lambda.id);
-    create_migrate_policy(fEquityDiv.org, fEquityDiv.dev,  migrate_lambda);
-    create_migrate_policy(fEquityDiv.org, fEquityDiv.prod, migrate_lambda);
-    create_migrate_policy(fEquityDiv.org, fEquityDiv.qa,   migrate_lambda);
+    log("\ncreated migrate lambda: " + migrate_lambda.id);
+    create_migrate_policy(equityDiv, equityDemo.fDev.get(),  migrate_lambda);
+    create_migrate_policy(equityDiv, equityDemo.fProd.get(), migrate_lambda);
+    create_migrate_policy(equityDiv, equityDemo.fQA.get(),   migrate_lambda);
 
     log("\nDemo environment complete.")
     return LOG.toString();
@@ -131,18 +187,32 @@ var ProviderTypes = {
     MARATHON: "Marathon"
 };
 
+var FORCE_DELETE = true;
+var DO_ASYNC = true;
+
 function populate_demo_org(name, description, base_org) {
     // asynchronously create org, workspace, and three environments
-    var new_org = create_org(base_org, name, description, true);
-    new_org.thenApply(function (org) {
-        var new_wrk = create_workspace(new_org, name+"-platform", description + " application platform", true);
-        new_wrk.thenApply(function (wrk) {
-            create_environment(org, wrk, "dev",  "Development", EnvironmentTypes.DEVELOPMENT, true);
-            create_environment(org, wrk, "prod", "Production",  EnvironmentTypes.PRODUCTION,  true);
-            create_environment(org, wrk, "qa",   "QA",          EnvironmentTypes.TEST,        true);
+    var fDev  = new CompletableFuture();
+    var fProd = new CompletableFuture();
+    var fQA   = new CompletableFuture();
+    var fWrk  = new CompletableFuture();
+
+    var fOrg = create_org(base_org, name, description, DO_ASYNC);
+    fOrg.thenApply(function (org) {
+        create_workspace(org, name+"-platform", description + " application platform", DO_ASYNC, fWrk);
+        fWrk.thenApply(function (wrk) {
+            create_environment(org, wrk, "dev",  "Development", EnvironmentTypes.DEVELOPMENT, DO_ASYNC, fDev);
+            create_environment(org, wrk, "prod", "Production",  EnvironmentTypes.PRODUCTION,  DO_ASYNC, fProd);
+            create_environment(org, wrk, "qa",   "QA",          EnvironmentTypes.TEST,        DO_ASYNC, fQA);
         })
     });
-    return new_org;
+    return {
+        fOrg: fOrg,
+        fWrk: fWrk,
+        fDev: fDev,
+        fProd: fProd,
+        fQA: fQA
+    };
 }
 
 function get_env(key) {
@@ -183,16 +253,8 @@ function fqon(org) {
     return org.properties.fqon;
 }
 
-function create_group(parent_org, name, desc) {
-    log("Creating group " + parent_org.name + "/" + name);
-    return _POST("/" + fqon(parent_org) + "/groups", {
-        name: name,
-        description: desc
-    });
-}
-
 function find_entitlement_async(base_org, resource, entitlement_name) {
-    var fEnts = _GET("/" + fqon(base_org) + "/resources/" + resource.id + "/entitlements?expand=true", true);
+    var fEnts = _GET("/" + fqon(base_org) + "/resources/" + resource.id + "/entitlements?expand=true", DO_ASYNC);
     return fEnts.thenApply(function(ents) {
         for each (e in ents) if (e.properties.action == entitlement_name) return e;
         return null;
@@ -228,16 +290,16 @@ function add_entitlement(base_org, resource, entitlement_name, identity, async) 
                 identities: cur_ids.concat(identity.id)
             }
         };
-        log((async ? "[async]" : "") + "updating entitlement " + resource.name + "[" + entitlement_name + "] with " + disp(identity));
+        log("updating entitlement " + resource.name + "[" + entitlement_name + "] with " + disp(identity));
         switch (resource.resource_type) {
             case "Gestalt::Resource::Environment":
-                return _PUT("/" + fqon(base_org) + "/environments/" + resource.id + "/entitlements/" + ent.id, new_ent, true);
+                return _PUT("/" + fqon(base_org) + "/environments/" + resource.id + "/entitlements/" + ent.id, new_ent, DO_ASYNC);
             case "Gestalt::Resource::Workspace":
-                return _PUT("/" + fqon(base_org) + "/workspaces/" + resource.id + "/entitlements/" + ent.id, new_ent, true);
+                return _PUT("/" + fqon(base_org) + "/workspaces/" + resource.id + "/entitlements/" + ent.id, new_ent, DO_ASYNC);
             case "Gestalt::Resource::Organization":
-                return _PUT("/" + fqon(resource) + "/entitlements/" + ent.id, new_ent, true);
+                return _PUT("/" + fqon(resource) + "/entitlements/" + ent.id, new_ent, DO_ASYNC);
             default:
-                return _PUT("/" + fqon(base_org) + "/entitlements/" + ent.id, new_ent, true);
+                return _PUT("/" + fqon(base_org) + "/entitlements/" + ent.id, new_ent, DO_ASYNC);
         }
     });
     var _async = async ? async : false; // just being explicit that the default here is 'false'
@@ -267,8 +329,40 @@ function create_migrate_policy(base_org, environment, lambda) {
 }
 
 function create_user(parent_org, account_payload) {
-    log("Creating user " + parent_org.name + "/" + account_payload.name);
+    log("Creating user " + fqon(parent_org) + "/" + account_payload.name);
     return _POST("/" + fqon(parent_org) + "/users", account_payload);
+}
+
+function find_user(parent_org, username) {
+    log("Searching for user " + fqon(parent_org) + "/" + username);
+    var users = _GET("/" + fqon(parent_org) + "/users/search?name=" + username);
+    if (users.length == 0) return null;
+    return users[0];
+}
+
+function delete_user(parent_org, user) {
+    log("Deleting user " + fqon(parent_org) + "/" + disp(user));
+    return _DELETE("/" + fqon(parent_org) + "/users/" + user.id);
+}
+
+function create_group(parent_org, name, desc) {
+    log("Creating group " + parent_org.name + "/" + name);
+    return _POST("/" + fqon(parent_org) + "/groups", {
+        name: name,
+        description: desc
+    });
+}
+
+function find_group(parent_org, groupname) {
+    log("Searching for group " + fqon(parent_org) + "/" + groupname);
+    var groups = _GET("/" + fqon(parent_org) + "/groups/search?name=" + groupname);
+    if (groups.length == 0) return null;
+    return groups[0];
+}
+
+function delete_group(parent_org, group) {
+    log("Deleting group " + fqon(parent_org) + "/" + disp(group));
+    return _DELETE("/" + fqon(parent_org) + "/groups/" + group.id);
 }
 
 function add_user_to_group(parent_org, group, user) {
@@ -282,7 +376,13 @@ function create_provider(parent_org, provider_payload) {
 }
 
 function find_org(fqon, async) {
-    return _GET(fqon, async);
+    return _GET("/" + fqon, async);
+}
+
+function delete_org(org, force, async) {
+    var _force = force ? force : false;
+    log("Deleting org " + fqon(org));
+    return _DELETE("/" + fqon(org) + "?force=" + _force, async);
 }
 
 function create_org(parent_org, name, description, async) {
@@ -294,13 +394,13 @@ function create_org(parent_org, name, description, async) {
     return _POST("/" + fqon(parent_org), payload, async)
 }
 
-function create_workspace(parent_org, name, description, async) {
+function create_workspace(parent_org, name, description, async, f) {
     log("Creating workspace " + parent_org.name + "/" + name);
     var payload = {
         description: description,
         name: name
     };
-    return _POST("/" + fqon(parent_org) + "/workspaces", payload, async)
+    return _POST("/" + fqon(parent_org) + "/workspaces", payload, async, f);
 }
 
 function create_lambda(parent_org, parent_env, lambda_payload) {
@@ -308,7 +408,7 @@ function create_lambda(parent_org, parent_env, lambda_payload) {
     return _POST("/" + parent_org.properties.fqon + "/environments/" + parent_env.id + "/lambdas", lambda_payload);
 }
 
-function create_environment(parent_org, parent_workspace, name, description, type, async) {
+function create_environment(parent_org, parent_workspace, name, description, type, async, f) {
     log("Creating environment " + parent_workspace.name + "/" + name);
     var payload = {
         description: description,
@@ -317,19 +417,20 @@ function create_environment(parent_org, parent_workspace, name, description, typ
             environment_type: type
         }
     };
-    return _POST("/" + parent_org.properties.fqon + "/workspaces/" + parent_workspace.id + "/environments", payload, async)
+    return _POST("/" + parent_org.properties.fqon + "/workspaces/" + parent_workspace.id + "/environments", payload, async, f);
 }
 
 function _handleResponse(response) {
     var code = response.getStatusCode();
     var body = response.getResponseBody();
     if (code == 404) {
-        log("status code 404, resource not found");
         return null;
     } else if (code >= 300) {
         log("WARNING: status code : " + code);
         log("response: " + body);
         throw code;
+    } else if (code == 204) {
+        return null;
     }
     if (response.getContentType().startsWith("application/json")) return JSON.parse(body);
     return body;
@@ -355,6 +456,10 @@ function _REST_JSON(method, endpoint, payload, async, fResponse) {
         return fResponse;
     }
     return _handleResponse(pc.execute().get());
+}
+
+function _DELETE(endpoint, async, fResponse) {
+    return _REST_JSON("DELETE", endpoint, null, async, fResponse);
 }
 
 function _GET(endpoint, async, fResponse) {
