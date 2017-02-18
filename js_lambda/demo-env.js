@@ -25,11 +25,11 @@ function setup_demo(args, cred) {
         description: "Principal Engineer/Trading group",
         name: "jdoe",
         properties: {
-            email: "jdoe@galacticfog.com",
             firstName: "J",
-            gestalt_home: "galactic-capital",
             lastName: "Doe",
             password: "joethetrader",
+            email: "jdoe@galacticfog.com",
+            gestalt_home: "galactic-capital",
             phoneNumber: "+15555555555"
         }
     });
@@ -57,9 +57,7 @@ function setup_demo(args, cred) {
             }
         }
     );
-    // TODO: this is a test, doesn't actually need to be synchronous
-    var updatedEntitlement = add_entitlement(root_org, root_org, "provider.view", trading_grp, false);
-    log("root[provider.view] was entitlement " + updatedEntitlement.id);
+    add_entitlement(root_org, root_org, "provider.view", trading_grp, true);
 
     // create and populate demo sub-orgs: hr, it, debt, equity, private-client
     var hr_demo     = populate_demo_org("hr",             "HR Division", demo_org);
@@ -74,8 +72,7 @@ function setup_demo(args, cred) {
     var trading_prod = create_environment(equity_demo.org, trading_wrk, "prod", "Production", EnvironmentTypes.PRODUCTION);
     var trading_qa   = create_environment(equity_demo.org, trading_wrk, "qa",   "QA",         EnvironmentTypes.TEST);
 
-    var fUptEnt = add_entitlement(demo_org,        demo_org,     "org.view",         trading_grp, true);
-    log("this entitlement better be a future: " + fUptEnt);
+    add_entitlement(demo_org,        demo_org,     "org.view",         trading_grp, true);
     add_entitlement(equity_demo.org, trading_wrk,  "workspace.view",   trading_grp, true);
     add_entitlement(equity_demo.org, trading_wrk,  "environment.view", trading_grp, true);
     for each (env in [trading_dev, trading_prod, trading_qa]) {
@@ -234,7 +231,7 @@ function add_entitlement(base_org, resource, entitlement_name, identity, async) 
                 identities: cur_ids.concat(identity.id)
             }
         };
-        log("updating entitlement " + resource.name + "[" + entitlement_name + "] with " + disp(identity));
+        log((async ? "[async]" : "") + "updating entitlement " + resource.name + "[" + entitlement_name + "] with " + disp(identity));
         switch (resource.resource_type) {
             case "Gestalt::Resource::Environment":
                 return PUT("/" + fqon(base_org) + "/environments/" + resource.id + "/entitlements/" + ent.id, new_ent, true);
