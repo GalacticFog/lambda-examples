@@ -1,4 +1,4 @@
-function demo_setup(/* arguments, credentials */) {
+function run(/* arguments, credentials */) {
 
     load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/master/js_lambda/gestalt-sdk.js');
 
