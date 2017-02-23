@@ -193,7 +193,7 @@ function find_org(fqon, async) {
 }
 
 function find_environment(parent_org, environment_id, async) {
-    return _GET("/" + fqon + "/environments/" + environment_id, async);
+    return _GET("/" + fqon(parent_org) + "/environments/" + environment_id, async);
 }
 
 function delete_org(org, force, async) {
@@ -238,7 +238,7 @@ function create_environment(parent_org, parent_workspace, name, description, typ
 }
 
 function create_container(parent_org, parent_env, payload, async) {
-    log("Creating container " + payload.name + " in " + fqon(parent_org) + "/environments/" + parent_env.id)
+    log("Creating container " + payload.name + " in " + fqon(parent_org) + "/environments/" + parent_env.id);
     return _POST("/" + fqon(parent_org) + "/environments/" + parent_env.id + "/containers", async);
 }
 
