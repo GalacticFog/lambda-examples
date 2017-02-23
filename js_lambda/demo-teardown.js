@@ -28,7 +28,7 @@ function run(/* arguments, credentials */) {
     if (demo_org) {
         // do this async, because it takes a long time
         delete_org(demo_org, FORCE_DELETE, DO_ASYNC);
-        log("[demo org deleted in the background, this lambda not wait for the completion of that request]")
+        log("[demo org will be deleted in the background, this lambda will not wait for the completion of that request]")
     } else {
         log("did not find org 'galactic-capital'");
     }
