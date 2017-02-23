@@ -230,7 +230,7 @@ function _handleResponse(response) {
     if (code == 404) {
         return null;
     } else if (code >= 300) {
-        log("WARNING: status code : " + code);
+        log("WARNING: status code " + code + " from " + response.getUri());
         log("response: " + body);
         throw code;
     } else if (code == 204) {
