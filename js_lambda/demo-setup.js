@@ -1,6 +1,6 @@
 function run(/* arguments, credentials */) {
 
-    load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/master/js_lambda/gestalt-sdk.js');
+    load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/1.0.1/js_lambda/gestalt-sdk.js');
 
     META = get_meta();
     log("[init] found meta: " + META.url);
@@ -12,7 +12,7 @@ function run(/* arguments, credentials */) {
     var kong = list_providers(root_org, ProviderTypes.APIGATEWAY);
     if (kong.length == 0) {
         log("error: Could not find any ApiGateway providers");
-        return LOG.toString();
+        return getLog();
     }
     else kong = kong[0];
     log("")
@@ -22,7 +22,7 @@ function run(/* arguments, credentials */) {
     } catch(err) {
         if (err == 409) {
             log("group 'trading' already existed");
-            return LOG.toString();
+            return getLog();
         } else throw err;
     }
     try {
@@ -41,7 +41,7 @@ function run(/* arguments, credentials */) {
     } catch(err) {
         if (err == 409) {
             log("user 'jdoe' already existed");
-            return LOG.toString();
+            return getLog();
         } else throw err;
     }
     add_user_to_group(root_org, trading_grp, joe_the_trader);
@@ -110,7 +110,7 @@ function run(/* arguments, credentials */) {
             handler: "migrate-lambda;migrate",
             headers: {},
             memory: 512,
-            package_url: "https://raw.githubusercontent.com/GalacticFog/lambda-examples/master/js_lambda/migrate-lambda.js",
+            package_url: "https://raw.githubusercontent.com/GalacticFog/lambda-examples/1.0.1/js_lambda/migrate-lambda.js",
             providers: [
                 {
                     id: kong.id,
@@ -133,7 +133,7 @@ function run(/* arguments, credentials */) {
     create_migrate_policy(equityDiv, equityDemo.fQA.get(),   migrate_lambda);
 
     log("\nDemo environment complete.")
-    return LOG.toString();
+    return getLog();
 }
 
 function populate_demo_org(name, description, base_org) {

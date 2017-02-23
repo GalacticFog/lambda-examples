@@ -1,6 +1,6 @@
 function run(/* arguments, credentials */) {
 
-    load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/master/js_lambda/gestalt-sdk.js');
+    load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/1.0.1/js_lambda/gestalt-sdk.js');
 
     META = get_meta();
     log("[init] found meta: " + META.url);
@@ -35,5 +35,5 @@ function run(/* arguments, credentials */) {
     log("")
 
     log("Demo environment removed");
-    return LOG.toString();
+    return getLog();
 }

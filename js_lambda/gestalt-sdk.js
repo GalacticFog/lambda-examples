@@ -35,6 +35,10 @@ function get_meta(args, creds) {
     }
 }
 
+function getLog() {
+    return LOG.toString();
+}
+
 function log(a) {
     var str;
     if (typeof(a) === 'object') {
@@ -149,6 +153,11 @@ function delete_user(parent_org, user) {
     return _DELETE("/" + fqon(parent_org) + "/users/" + user.id);
 }
 
+function delete_container(parent_org, parent_env, container, async) {
+    log("Deleting container " + disp(container) + " from " + fqon(parent_org) + "/environments/" + parent_env.id);
+    return _DELETE("/" + fqon(parent_org) + "/environments/" + parent_env.id + "/containers/" + container.id,async);
+}
+
 function create_group(parent_org, name, desc) {
     log("Creating group " + parent_org.name + "/" + name);
     return _POST("/" + fqon(parent_org) + "/groups", {
@@ -181,6 +190,10 @@ function create_provider(parent_org, provider_payload) {
 
 function find_org(fqon, async) {
     return _GET("/" + fqon, async);
+}
+
+function find_environment(parent_org, environment_id, async) {
+    return _GET("/" + fqon + "/environments/" + environment_id, async);
 }
 
 function delete_org(org, force, async) {
@@ -222,6 +235,11 @@ function create_environment(parent_org, parent_workspace, name, description, typ
         }
     };
     return _POST("/" + parent_org.properties.fqon + "/workspaces/" + parent_workspace.id + "/environments", payload, async, f);
+}
+
+function create_container(parent_org, parent_env, payload, async) {
+    log("Creating container " + payload.name + " in " + fqon(parent_org) + "/environments/" + parent_env.id)
+    return _POST("/" + fqon(parent_org) + "/environments/" + parent_env.id + "/containers", async);
 }
 
 function _handleResponse(response) {
