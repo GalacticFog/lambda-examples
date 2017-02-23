@@ -239,7 +239,7 @@ function create_environment(parent_org, parent_workspace, name, description, typ
 
 function create_container(parent_org, parent_env, payload, async) {
     log("Creating container " + payload.name + " in " + fqon(parent_org) + "/environments/" + parent_env.id);
-    return _POST("/" + fqon(parent_org) + "/environments/" + parent_env.id + "/containers", async);
+    return _POST("/" + fqon(parent_org) + "/environments/" + parent_env.id + "/containers", payload, async);
 }
 
 function _handleResponse(response) {
