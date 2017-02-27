@@ -4,10 +4,7 @@ function migrate(args, creds) {
 
     var args = JSON.parse( args );
 
-    META = {
-        url: args.meta_url,
-        creds: creds
-    }
+    META = get_meta(args, creds);
     log("[init] found meta: " + META.url);
 
     var prv_id   = args.provider_id;

@@ -2,7 +2,7 @@ var AsyncHttpClient   = Java.type('com.ning.http.client.AsyncHttpClient');
 var CompletableFuture = Java.type('java.util.concurrent.CompletableFuture');
 
 var META   = null;
-var LOG    = new java.lang.StringBuilder();
+var LOG_APPENDER = new java.lang.StringBuilder();
 var client = new AsyncHttpClient();
 
 var EnvironmentTypes = {
@@ -19,27 +19,54 @@ var ProviderTypes = {
 var FORCE_DELETE = true;
 var DO_ASYNC = true;
 
-function get_env(key) {
+var LoggingLevels = {
+    ERROR: 3,
+    WARNING: 2,
+    INFO: 1,
+    DEBUG: 0
+};
+
+function getAppLogLevel() {
+    if (Boolean(get_env("LOG_DEBUG", "false"))) {
+        return LoggingLevels.DEBUG;
+    }
+    return LoggingLevels.INFO;
+}
+
+var loggingLevels = {
+    applog:  getAppLogLevel(),
+    console: LoggingLevels.DEBUG
+};
+
+function get_env(key,def) {
     var val = java.lang.System.getenv().get(key);
-    if (!val) throw "Env missing variable " + key;
-    return val;
+    if (val) return val;
+    if (def) return def;
+    throw "Env missing variable " + key;
 }
 
 function get_meta(args, creds) {
-    var api_key = get_env("API_KEY");
-    var api_secret = get_env("API_SECRET");
-    var login_hash = javax.xml.bind.DatatypeConverter.printBase64Binary((api_key + ":" + api_secret).getBytes());
+    if (args && args.meta_url) {
+        var meta_url = args.meta_url;
+    } else {
+        var meta_url = get_env("META_URL");
+    }
+    if (!creds || creds === "") {
+        var api_key = get_env("API_KEY");
+        var api_secret = get_env("API_SECRET");
+        creds = "Basic " + javax.xml.bind.DatatypeConverter.printBase64Binary((api_key + ":" + api_secret).getBytes());
+    }
     return {
-        url: get_env("META_URL"),
-        creds: "Basic " + login_hash
+        url: meta_url,
+        creds: creds
     }
 }
 
 function getLog() {
-    return LOG.toString();
+    return LOG_APPENDER.toString();
 }
 
-function log(a) {
+function log(a, lvl) {
     var str;
     if (typeof(a) === 'object') {
         str = JSON.stringify(a);
@@ -47,8 +74,11 @@ function log(a) {
     else {
         str = a.toString();
     }
-    console.log(str);
-    LOG.append(str + "\n");
+    if (!lvl) {
+        lvl = LoggingLevels.INFO;
+    }
+    if (lvl >= loggingLevels.console)  console.applog(str);
+    if (lvl >= loggingLevels.applog) LOG_APPENDER.append(str + "\n");
 }
 
 function list_providers(org, provider_type) {
@@ -99,6 +129,7 @@ function add_entitlement(base_org, resource, entitlement_name, identity, async) 
             }
         };
         log("updating entitlement " + resource.name + "[" + entitlement_name + "] with " + disp(identity));
+        log("entitlement " + resource.name + "[" + entitlement_name + "] is " + ent.id, LoggingLevels.DEBUG);
         switch (resource.resource_type) {
             case "Gestalt::Resource::Environment":
                 return _PUT("/" + fqon(base_org) + "/environments/" + resource.id + "/entitlements/" + ent.id, new_ent, DO_ASYNC);
