@@ -77,8 +77,8 @@ function log(a, lvl) {
     if (!lvl) {
         lvl = LoggingLevels.INFO;
     }
-    if (lvl >= loggingLevels.console)  console.applog(str);
-    if (lvl >= loggingLevels.applog) LOG_APPENDER.append(str + "\n");
+    if (lvl >= loggingLevels.console) console.log(str);
+    if (lvl >= loggingLevels.applog)  LOG_APPENDER.append(str + "\n");
 }
 
 function list_providers(org, provider_type) {
