@@ -101,16 +101,16 @@ function run(/* arguments, credentials */) {
     var global_env  = create_environment(demo_org, global_work, "global", "global environment", EnvironmentTypes.PRODUCTION);
     var migrate_lambda = create_lambda(demo_org, global_env, {
         description: "",
-        name: "migrate-lambda",
+        name: "default-migrate",
         properties: {
             code_type: "package",
             compressed: false,
             cpus: 0.,
             env: {},
-            handler: "migrate-lambda;migrate",
+            handler: "default-migrate;migrate",
             headers: {},
             memory: 512,
-            package_url: "https://raw.githubusercontent.com/GalacticFog/lambda-examples/1.0.1/js_lambda/migrate-lambda.js",
+            package_url: "https://raw.githubusercontent.com/GalacticFog/lambda-examples/1.0.1/js_lambda/default-migrate.js",
             providers: [
                 {
                     id: kong.id,
