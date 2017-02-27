@@ -74,7 +74,7 @@ function log(a, lvl) {
     else {
         str = a.toString();
     }
-    if (!lvl) {
+    if (lvl == undefined) {
         lvl = LoggingLevels.INFO;
     }
     if (lvl >= loggingLevels.console) console.log(str);
