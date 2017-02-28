@@ -62,7 +62,7 @@ Then you specify your lambda payload like so :
 			"artifactUri": "https://s3.amazonaws.com/my.lambdas/hello_world.zip",
 			"description": "super simple lambda for dotnet",
 			"functionName": "doesntgetused",
-			"handler": "bin/release/netcoreapp1.0/debian.8-x64/publish/Hello",
+			"handler": "publish/Hello",
 			"memorySize": 1024,
 			"cpus": 0.2,
 			"publish": false,
