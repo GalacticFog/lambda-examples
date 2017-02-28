@@ -47,7 +47,7 @@ Now while you're in the directory that contains your project you can run the fol
 > docker run --rm -v "$PWD":/hello_world -w /hello_world galacticfog/build-dotnet:1.0.1 /bin/bash -c "dotnet restore && dotnet publish -o publish -c release -r debian.8-x64"
 ```
 
-The above command will mount your working directory as a writeable volume in the docker container, and then execute the commands necessary to pull down all the dependencies specified in your project, compild your code, and publish the executable and the dependencies in the `publish` directory.
+The above command will mount your working directory as a writeable volume in the docker container, and then execute the commands necessary to pull down all the dependencies specified in your project, compile your code, and publish the executable and the dependencies in the `publish` directory.
 
 You can then zip up the contents of your directory : 
 ```
