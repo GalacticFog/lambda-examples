@@ -94,6 +94,12 @@ function fqon(org) {
 function find_entitlement_async(base_org, resource, entitlement_name) {
     var fEnts = _GET("/" + fqon(base_org) + "/resources/" + resource.id + "/entitlements?expand=true", DO_ASYNC);
     return fEnts.thenApply(function(ents) {
+        var all = new java.lang.StringBuilder();
+        all.append("/"+fqon(base_org)+"/resources/"+resource.id+" returned ents:");
+        for each (e in ents) {
+            all.append(e.id + " ");
+        }
+        log(all.toString(), LoggingLevels.DEBUG);
         for each (e in ents) if (e.properties.action == entitlement_name) return e;
         return null;
     });
