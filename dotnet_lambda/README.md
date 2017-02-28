@@ -11,7 +11,7 @@ Here is a brief example of how to create a .NET lambda.
 # Hello World
 
 Simplest possible .NET lambda.  Note that you must implement `Main(string[] args)` entry point in order for your lambda to be executed by the system. The code and Makefile for this
-lambda is container in [examples/hello-world][]
+lambda is container in [examples/hello-world](examples/hello-world)
 
 ### Program.cs
 ```c#
