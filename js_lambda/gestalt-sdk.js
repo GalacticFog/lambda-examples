@@ -2,7 +2,7 @@ var AsyncHttpClient   = Java.type('com.ning.http.client.AsyncHttpClient');
 var CompletableFuture = Java.type('java.util.concurrent.CompletableFuture');
 
 var META   = null;
-var LOG_APPENDER = new java.lang.StringBuilder();
+var LOG_APPENDER = new java.lang.StringBuffer();
 var client = new AsyncHttpClient();
 
 var EnvironmentTypes = {
