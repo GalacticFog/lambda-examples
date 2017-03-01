@@ -28,6 +28,8 @@ var LoggingLevels = {
 
 function getAppLogLevel() {
     if (Boolean(get_env("LOG_DEBUG", "false"))) {
+        console.log("enabling debug logging");
+        LOG_APPENDER.append("enabling debug logging\n");
         return LoggingLevels.DEBUG;
     }
     return LoggingLevels.INFO;
