@@ -69,8 +69,10 @@ function run(/* arguments, credentials */) {
             }
         }
     );
-    add_entitlement(root_org, root_org, "provider.view", trading_grp, DO_ASYNC);
-    log("")
+    var update_test = add_entitlements(root_org, root_org, "provider.view", trading_grp);
+    log("update test result: ");
+    log(update_test);
+    log("");
 
     // create and populate demo sub-orgs: hr, it, debt, equity, private-client
     var equityDemo = populate_demo_org("equity",         "Equity Division",         demo_org);
@@ -86,14 +88,15 @@ function run(/* arguments, credentials */) {
     var trading_prod = create_environment(equityDiv, trading_wrk, "prod", "Production", EnvironmentTypes.PRODUCTION);
     var trading_qa   = create_environment(equityDiv, trading_wrk, "qa",   "QA",         EnvironmentTypes.TEST);
 
-    add_entitlement(demo_org,  demo_org,     "org.view",         trading_grp, DO_ASYNC);
-    add_entitlement(equityDiv, trading_wrk,  "workspace.view",   trading_grp, DO_ASYNC);
-    add_entitlement(equityDiv, trading_wrk,  "environment.view", trading_grp, DO_ASYNC);
+    var update_test2 = add_entitlements(demo_org,  demo_org,     "org.view",         trading_grp, DO_ASYNC);
+    log("update test 2 result: ");
+    log(update_test2.join());
+    add_entitlements(equityDiv, trading_wrk,  "workspace.view",   trading_grp, DO_ASYNC);
+    add_entitlements(equityDiv, trading_wrk,  "environment.view", trading_grp, DO_ASYNC);
+    var ENV_ENTS = ["container.create", "container.view", "container.update", "container.delete", "container.scale", "container.migrate",
+                    "lambda.create", "lambda.view", "lambda.update", "lambda.delete"];
     for each (env in [trading_dev, trading_prod, trading_qa]) {
-        for each (ent in ["container.create", "container.view", "container.update", "container.delete", "container.scale", "container.migrate",
-                          "lambda.create", "lambda.view", "lambda.update", "lambda.delete"]) {
-            add_entitlement(equityDiv, env, ent, trading_grp, DO_ASYNC);
-        }
+        add_entitlements(equityDiv, env, ENV_ENTS, trading_grp, DO_ASYNC);
     }
 
     log("")

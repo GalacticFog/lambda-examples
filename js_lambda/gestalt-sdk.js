@@ -91,18 +91,9 @@ function fqon(org) {
     return org.properties.fqon;
 }
 
-function find_entitlement_async(base_org, resource, entitlement_name) {
-    var fEnts = _GET("/" + fqon(base_org) + "/resources/" + resource.id + "/entitlements?expand=true", DO_ASYNC);
-    return fEnts.thenApply(function(ents) {
-        var all = new java.lang.StringBuilder();
-        all.append("/"+fqon(base_org)+"/resources/"+resource.id+" returned ents:");
-        for each (e in ents) {
-            all.append(e.id + " ");
-        }
-        log(all.toString(), LoggingLevels.DEBUG);
-        for each (e in ents) if (e.properties.action == entitlement_name) return e;
-        return null;
-    });
+function find_entitlement(ents, entitlement_name) {
+    for each (e in ents) if (e.properties.action == entitlement_name) return e;
+    return null;
 }
 
 function contains(arr, v) {
@@ -114,41 +105,61 @@ function disp(r) {
     return r.name + "(" + r.id + ")"
 }
 
-function add_entitlement(base_org, resource, entitlement_name, identity, async) {
-    var fEnt = find_entitlement_async(base_org, resource, entitlement_name);
-    var fEntUpdate = fEnt.thenCompose(function(ent) {
-        if (!ent) {
-            log("could not locate entitlement " + entitlement_name + " on resource " + disp(resource));
-            return java.util.concurrent.completedFuture(null);
-        }
-        var cur_ids = ent.properties.identities.map(function(i) {return i.id;});
-        if (contains(cur_ids, identity.id)) {
-            log("entitlement " + resource.name + "[" + entitlement_name + "] already contains identity " + disp(identity));
-            return java.util.concurrent.completedFuture(null);
-        }
-        var new_ent = {
-            id: ent.id,
-            name: ent.name,
-            properties: {
-                action: ent.properties.action,
-                identities: cur_ids.concat(identity.id)
+// turn Array[Future[Updates]] into Future[Array[Updates]]
+function sequence(futures) {
+    return CompletableFuture.allOf(futures).thenApply(function(dummyVarIsNull){
+        return futures.map(function(f){
+            return f.join();
+        });
+    });
+}
+
+
+function add_entitlements(base_org, resource, entitlement_names, identity, async) {
+    if (!Array.isArray(entitlement_names)) {
+        entitlement_names = [entitlement_names];
+    }
+    var fEnts = _GET("/" + fqon(base_org) + "/resources/" + resource.id + "/entitlements?expand=true", DO_ASYNC);
+    var fEntUpdates = fEnts.thenCompose(function(ents) {
+        var fUpdates = [];
+        for each (ename in entitlement_names) {
+            var ent = find_entitlement(ents, ename)
+            if (!ent) {
+                log("could not locate entitlement " + ename + " on resource " + disp(resource));
+                fUpdates.push(CompletableFuture.completedFuture(null));
+                continue;
             }
-        };
-        log("updating entitlement " + disp(ent) + " on resource " + disp(resource) + " with identity " + disp(identity));
-        switch (resource.resource_type) {
-            case "Gestalt::Resource::Environment":
-                return _PUT("/" + fqon(base_org) + "/environments/" + resource.id + "/entitlements/" + ent.id, new_ent, DO_ASYNC);
-            case "Gestalt::Resource::Workspace":
-                return _PUT("/" + fqon(base_org) + "/workspaces/" + resource.id + "/entitlements/" + ent.id, new_ent, DO_ASYNC);
-            case "Gestalt::Resource::Organization":
-                return _PUT("/" + fqon(resource) + "/entitlements/" + ent.id, new_ent, DO_ASYNC);
-            default:
-                return _PUT("/" + fqon(base_org) + "/entitlements/" + ent.id, new_ent, DO_ASYNC);
+            var cur_ids = ent.properties.identities.map(function(i) {return i.id;});
+            if (contains(cur_ids, identity.id)) {
+                log("entitlement " + resource.name + "[" + ename + "] already contains identity " + disp(identity));
+                fUpdates.push(CompletableFuture.completedFuture(null));
+                continue;
+            }
+            var new_ent = {
+                id: ent.id,
+                name: ent.name,
+                properties: {
+                    action: ent.properties.action,
+                    identities: cur_ids.concat(identity.id)
+                }
+            };
+            log("updating entitlement " + disp(ent) + " on resource " + disp(resource) + " with identity " + disp(identity));
+            switch (resource.resource_type) {
+                case "Gestalt::Resource::Environment":
+                    fUpdates.push(_PUT("/" + fqon(base_org) + "/environments/" + resource.id + "/entitlements/" + ent.id, new_ent, DO_ASYNC));
+                case "Gestalt::Resource::Workspace":
+                    fUpdates.push(_PUT("/" + fqon(base_org) + "/workspaces/" + resource.id + "/entitlements/" + ent.id, new_ent, DO_ASYNC));
+                case "Gestalt::Resource::Organization":
+                    fUpdates.push(_PUT("/" + fqon(resource) + "/entitlements/" + ent.id, new_ent, DO_ASYNC));
+                default:
+                    fUpdates.push(_PUT("/" + fqon(base_org) + "/entitlements/" + ent.id, new_ent, DO_ASYNC));
+            }
         }
+        return sequence(fUpdates);
     });
     var _async = async ? async : false; // just being explicit that the default here is 'false'
-    if (_async) return fEntUpdate;
-    return fEntUpdate.get();
+    if (_async) return fEntUpdates;
+    return fEntUpdates.join();
 }
 
 function create_migrate_policy(base_org, environment, lambda) {
