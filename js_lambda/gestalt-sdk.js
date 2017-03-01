@@ -119,11 +119,10 @@ function add_entitlements(base_org, resource, entitlement_names, identity, async
     if (!Array.isArray(entitlement_names)) {
         entitlement_names = [entitlement_names];
     }
-    var fEnts = _GET("/" + fqon(base_org) + "/resources/" + resource.id + "/entitlements?expand=true", DO_ASYNC);
-    var fEntUpdates = fEnts.thenCompose(function(ents) {
+    var fEntUpdates = _GET("/" + fqon(base_org) + "/resources/" + resource.id + "/entitlements?expand=true", DO_ASYNC).thenCompose(function(ents) {
         var fUpdates = [];
         for each (ename in entitlement_names) {
-            var ent = find_entitlement(ents, ename)
+            var ent = find_entitlement(ents, ename);
             if (!ent) {
                 log("could not locate entitlement " + ename + " on resource " + disp(resource));
                 fUpdates.push(CompletableFuture.completedFuture(null));
@@ -147,12 +146,16 @@ function add_entitlements(base_org, resource, entitlement_names, identity, async
             switch (resource.resource_type) {
                 case "Gestalt::Resource::Environment":
                     fUpdates.push(_PUT("/" + fqon(base_org) + "/environments/" + resource.id + "/entitlements/" + ent.id, new_ent, DO_ASYNC));
+                    break;
                 case "Gestalt::Resource::Workspace":
                     fUpdates.push(_PUT("/" + fqon(base_org) + "/workspaces/" + resource.id + "/entitlements/" + ent.id, new_ent, DO_ASYNC));
+                    break;
                 case "Gestalt::Resource::Organization":
                     fUpdates.push(_PUT("/" + fqon(resource) + "/entitlements/" + ent.id, new_ent, DO_ASYNC));
+                    break;
                 default:
                     fUpdates.push(_PUT("/" + fqon(base_org) + "/entitlements/" + ent.id, new_ent, DO_ASYNC));
+                    break;
             }
         }
         return sequence(fUpdates);

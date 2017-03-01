@@ -69,9 +69,7 @@ function run(/* arguments, credentials */) {
             }
         }
     );
-    var update_test = add_entitlements(root_org, root_org, "provider.view", trading_grp);
-    log("update test result: ");
-    log(update_test);
+    add_entitlements(root_org, root_org, "provider.view", trading_grp, DO_ASYNC);
     log("");
 
     // create and populate demo sub-orgs: hr, it, debt, equity, private-client
@@ -88,9 +86,7 @@ function run(/* arguments, credentials */) {
     var trading_prod = create_environment(equityDiv, trading_wrk, "prod", "Production", EnvironmentTypes.PRODUCTION);
     var trading_qa   = create_environment(equityDiv, trading_wrk, "qa",   "QA",         EnvironmentTypes.TEST);
 
-    var update_test2 = add_entitlements(demo_org,  demo_org,     "org.view",         trading_grp, DO_ASYNC);
-    log("update test 2 result: ");
-    log(update_test2.join());
+    add_entitlements(demo_org,  demo_org,     "org.view",         trading_grp, DO_ASYNC);
     add_entitlements(equityDiv, trading_wrk,  "workspace.view",   trading_grp, DO_ASYNC);
     add_entitlements(equityDiv, trading_wrk,  "environment.view", trading_grp, DO_ASYNC);
     var ENV_ENTS = ["container.create", "container.view", "container.update", "container.delete", "container.scale", "container.migrate",
