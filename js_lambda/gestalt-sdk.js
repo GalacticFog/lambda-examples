@@ -134,8 +134,7 @@ function add_entitlement(base_org, resource, entitlement_name, identity, async) 
                 identities: cur_ids.concat(identity.id)
             }
         };
-        log("updating entitlement " + resource.name + "[" + entitlement_name + "] with " + disp(identity));
-        log("entitlement " + resource.name + "[" + entitlement_name + "] is " + ent.id, LoggingLevels.DEBUG);
+        log("updating entitlement " + disp(ent) + " on resource " + disp(resource) + " with identity " + disp(identity));
         switch (resource.resource_type) {
             case "Gestalt::Resource::Environment":
                 return _PUT("/" + fqon(base_org) + "/environments/" + resource.id + "/entitlements/" + ent.id, new_ent, DO_ASYNC);
@@ -300,7 +299,7 @@ function _REST_JSON(method, endpoint, payload, async, fResponse) {
     var pc = client.prepareConnect(url)
         .setMethod(method)
         .addHeader("Authorization", META.creds);
-    // log(method + " " + url);
+    log(method + " " + url, LoggingLevels.DEBUG);
     if (payload) {
         pc = pc.setBody(JSON.stringify(payload)).addHeader("Content-Type", "application/json")
     }
