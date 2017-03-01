@@ -3,10 +3,9 @@ function run(/* arguments, credentials */) {
     load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/1.0.1/js_lambda/gestalt-sdk.js');
 
     META = get_meta();
-    log("[init] found meta: " + META.url);
+    log("found meta: " + META.url, LoggingLevels.DEBUG);
     var root_org = find_org("root");
-    log("[init] found root: " + root_org.id);
-    log("")
+    log("found root: " + root_org.id + "\n", LoggingLevels.DEBUG);
 
     var jdoe = find_user(root_org, "jdoe");
     if (jdoe) {

@@ -3,10 +3,10 @@ function run(/* arguments, credentials */) {
     load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/testing/js_lambda/gestalt-sdk.js');
 
     META = get_meta();
-    log("[init] found meta: " + META.url);
+    log("found meta: " + META.url, LoggingLevels.DEBUG);
 
     var root_org = find_org("root");
-    log("[init] found root org:" + root_org.id);
+    log("found root org:" + root_org.id + "\n", LoggingLevels.DEBUG);
 
     // find kong provider
     var kong = list_providers(root_org, ProviderTypes.APIGATEWAY);
