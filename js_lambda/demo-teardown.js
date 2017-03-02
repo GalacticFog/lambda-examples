@@ -1,12 +1,11 @@
 function run(/* arguments, credentials */) {
 
-    load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/1.0.1/js_lambda/gestalt-sdk.js');
+    load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/testing/js_lambda/gestalt-sdk.js');
 
     META = get_meta();
-    log("[init] found meta: " + META.url);
+    log("found meta: " + META.url, LoggingLevels.DEBUG);
     var root_org = find_org("root");
-    log("[init] found root: " + root_org.id);
-    log("")
+    log("found root: " + root_org.id + "\n", LoggingLevels.DEBUG);
 
     var jdoe = find_user(root_org, "jdoe");
     if (jdoe) {
@@ -14,7 +13,7 @@ function run(/* arguments, credentials */) {
     } else {
         log("did not find user 'jdoe'");
     }
-    log("")
+    log("");
 
     var trading_grp = find_group(root_org, "trading");
     if (trading_grp) {
@@ -22,7 +21,7 @@ function run(/* arguments, credentials */) {
     } else {
         log("did not find group 'trading'");
     }
-    log("")
+    log("");
 
     var demo_org = find_org("galactic-capital");
     if (demo_org) {
@@ -32,7 +31,7 @@ function run(/* arguments, credentials */) {
     } else {
         log("did not find org 'galactic-capital'");
     }
-    log("")
+    log("");
 
     log("Demo environment removed");
     return getLog();

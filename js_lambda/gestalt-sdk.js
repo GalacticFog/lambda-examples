@@ -2,7 +2,7 @@ var AsyncHttpClient   = Java.type('com.ning.http.client.AsyncHttpClient');
 var CompletableFuture = Java.type('java.util.concurrent.CompletableFuture');
 
 var META   = null;
-var LOG_APPENDER = new java.lang.StringBuilder();
+var LOG_APPENDER = new java.lang.StringBuffer();
 var client = new AsyncHttpClient();
 
 var EnvironmentTypes = {
@@ -27,7 +27,9 @@ var LoggingLevels = {
 };
 
 function getAppLogLevel() {
-    if (Boolean(get_env("LOG_DEBUG", "false"))) {
+    if (get_env("LOG_DEBUG", "false") == "true") {
+        console.log("enabling debug logging");
+        LOG_APPENDER.append("enabling debug logging\n");
         return LoggingLevels.DEBUG;
     }
     return LoggingLevels.INFO;
@@ -74,7 +76,7 @@ function log(a, lvl) {
     else {
         str = a.toString();
     }
-    if (lvl == undefined) {
+    if (lvl === undefined) {
         lvl = LoggingLevels.INFO;
     }
     if (lvl >= loggingLevels.console) console.log(str);
@@ -91,12 +93,9 @@ function fqon(org) {
     return org.properties.fqon;
 }
 
-function find_entitlement_async(base_org, resource, entitlement_name) {
-    var fEnts = _GET("/" + fqon(base_org) + "/resources/" + resource.id + "/entitlements?expand=true", DO_ASYNC);
-    return fEnts.thenApply(function(ents) {
-        for each (e in ents) if (e.properties.action == entitlement_name) return e;
-        return null;
-    });
+function find_entitlement(ents, entitlement_name) {
+    for each (e in ents) if (e.properties.action == entitlement_name) return e;
+    return null;
 }
 
 function contains(arr, v) {
@@ -108,42 +107,56 @@ function disp(r) {
     return r.name + "(" + r.id + ")"
 }
 
-function add_entitlement(base_org, resource, entitlement_name, identity, async) {
-    var fEnt = find_entitlement_async(base_org, resource, entitlement_name);
-    var fEntUpdate = fEnt.thenCompose(function(ent) {
-        if (!ent) {
-            log("could not locate entitlement " + entitlement_name + " on resource " + disp(resource));
-            return java.util.concurrent.completedFuture(null);
-        }
-        var cur_ids = ent.properties.identities.map(function(i) {return i.id;});
-        if (contains(cur_ids, identity.id)) {
-            log("entitlement " + resource.name + "[" + entitlement_name + "] already contains identity " + disp(identity));
-            return java.util.concurrent.completedFuture(null);
-        }
-        var new_ent = {
-            id: ent.id,
-            name: ent.name,
-            properties: {
-                action: ent.properties.action,
-                identities: cur_ids.concat(identity.id)
+// turn Array[Future[Updates]] into Future[Array[Updates]]
+function sequence(futures) {
+    return CompletableFuture.allOf(futures).thenApply(function(dummyVarIsNull){
+        return futures.map(function(f){
+            return f.join();
+        });
+    });
+}
+
+
+function add_entitlements(base_org, resource, entitlement_names, identity, async) {
+    if (!Array.isArray(entitlement_names)) {
+        entitlement_names = [entitlement_names];
+    }
+    var fEntUpdates = _GET("/" + fqon(base_org) + "/resources/" + resource.id + "/entitlements?expand=true", DO_ASYNC).thenCompose(function(ents) {
+        return sequence(entitlement_names.map(function(ename){
+            var ent = find_entitlement(ents, ename);
+            if (!ent) {
+                log("Could not locate entitlement " + ename + " on resource " + disp(resource));
+                return CompletableFuture.completedFuture(null);
             }
-        };
-        log("updating entitlement " + resource.name + "[" + entitlement_name + "] with " + disp(identity));
-        log("entitlement " + resource.name + "[" + entitlement_name + "] is " + ent.id, LoggingLevels.DEBUG);
-        switch (resource.resource_type) {
-            case "Gestalt::Resource::Environment":
-                return _PUT("/" + fqon(base_org) + "/environments/" + resource.id + "/entitlements/" + ent.id, new_ent, DO_ASYNC);
-            case "Gestalt::Resource::Workspace":
-                return _PUT("/" + fqon(base_org) + "/workspaces/" + resource.id + "/entitlements/" + ent.id, new_ent, DO_ASYNC);
-            case "Gestalt::Resource::Organization":
-                return _PUT("/" + fqon(resource) + "/entitlements/" + ent.id, new_ent, DO_ASYNC);
-            default:
-                return _PUT("/" + fqon(base_org) + "/entitlements/" + ent.id, new_ent, DO_ASYNC);
-        }
+            var cur_ids = ent.properties.identities.map(function(i) {return i.id;});
+            if (contains(cur_ids, identity.id)) {
+                log("Entitlement " + resource.name + "[" + ename + "] already contains identity " + disp(identity));
+                return CompletableFuture.completedFuture(null);
+            }
+            var new_ent = {
+                id: ent.id,
+                name: ent.name,
+                properties: {
+                    action: ent.properties.action,
+                    identities: cur_ids.concat(identity.id)
+                }
+            };
+            log("Updating entitlement " + resource.name + "[" + ename + "] with identity " + disp(identity));
+            switch (resource.resource_type) {
+                case "Gestalt::Resource::Environment":
+                    return _PUT("/" + fqon(base_org) + "/environments/" + resource.id + "/entitlements/" + ent.id, new_ent, DO_ASYNC);
+                case "Gestalt::Resource::Workspace":
+                    return _PUT("/" + fqon(base_org) + "/workspaces/" + resource.id + "/entitlements/" + ent.id, new_ent, DO_ASYNC);
+                case "Gestalt::Resource::Organization":
+                    return _PUT("/" + fqon(resource) + "/entitlements/" + ent.id, new_ent, DO_ASYNC);
+                default:
+                    return _PUT("/" + fqon(base_org) + "/entitlements/" + ent.id, new_ent, DO_ASYNC);
+            }
+        }));
     });
     var _async = async ? async : false; // just being explicit that the default here is 'false'
-    if (_async) return fEntUpdate;
-    return fEntUpdate.get();
+    if (_async) return fEntUpdates;
+    return fEntUpdates.join();
 }
 
 function create_migrate_policy(base_org, environment, lambda) {
@@ -294,7 +307,7 @@ function _REST_JSON(method, endpoint, payload, async, fResponse) {
     var pc = client.prepareConnect(url)
         .setMethod(method)
         .addHeader("Authorization", META.creds);
-    // log(method + " " + url);
+    log(method + " " + url, LoggingLevels.DEBUG);
     if (payload) {
         pc = pc.setBody(JSON.stringify(payload)).addHeader("Content-Type", "application/json")
     }
