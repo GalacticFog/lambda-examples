@@ -3,10 +3,10 @@ function run(/* arguments, credentials */) {
     load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/1.0.1/js_lambda/gestalt-sdk.js');
 
     META = get_meta();
-    log("[init] found meta: " + META.url);
+    log("found meta: " + META.url, LoggingLevels.DEBUG);
 
     var root_org = find_org("root");
-    log("[init] found root org:" + root_org.id);
+    log("found root org:" + root_org.id + "\n", LoggingLevels.DEBUG);
 
     // find kong provider
     var kong = list_providers(root_org, ProviderTypes.APIGATEWAY);
@@ -69,8 +69,8 @@ function run(/* arguments, credentials */) {
             }
         }
     );
-    add_entitlement(root_org, root_org, "provider.view", trading_grp, DO_ASYNC);
-    log("")
+    add_entitlements(root_org, root_org, "provider.view", trading_grp, DO_ASYNC);
+    log("");
 
     // create and populate demo sub-orgs: hr, it, debt, equity, private-client
     var equityDemo = populate_demo_org("equity",         "Equity Division",         demo_org);
@@ -86,14 +86,13 @@ function run(/* arguments, credentials */) {
     var trading_prod = create_environment(equityDiv, trading_wrk, "prod", "Production", EnvironmentTypes.PRODUCTION);
     var trading_qa   = create_environment(equityDiv, trading_wrk, "qa",   "QA",         EnvironmentTypes.TEST);
 
-    add_entitlement(demo_org,  demo_org,     "org.view",         trading_grp, DO_ASYNC);
-    add_entitlement(equityDiv, trading_wrk,  "workspace.view",   trading_grp, DO_ASYNC);
-    add_entitlement(equityDiv, trading_wrk,  "environment.view", trading_grp, DO_ASYNC);
+    add_entitlements(demo_org,  demo_org,     "org.view",         trading_grp, DO_ASYNC);
+    add_entitlements(equityDiv, trading_wrk,  "workspace.view",   trading_grp, DO_ASYNC);
+    add_entitlements(equityDiv, trading_wrk,  "environment.view", trading_grp, DO_ASYNC);
+    var ENV_ENTS = ["container.create", "container.view", "container.update", "container.delete", "container.scale", "container.migrate",
+                    "lambda.create", "lambda.view", "lambda.update", "lambda.delete"];
     for each (env in [trading_dev, trading_prod, trading_qa]) {
-        for each (ent in ["container.create", "container.view", "container.update", "container.delete", "container.scale", "container.migrate",
-                          "lambda.create", "lambda.view", "lambda.update", "lambda.delete"]) {
-            add_entitlement(equityDiv, env, ent, trading_grp, DO_ASYNC);
-        }
+        add_entitlements(equityDiv, env, ENV_ENTS, trading_grp, DO_ASYNC);
     }
 
     log("")
