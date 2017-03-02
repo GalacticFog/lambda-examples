@@ -76,9 +76,10 @@ function log(a, lvl) {
     else {
         str = a.toString();
     }
-    if (lvl == undefined) {
+    if (lvl === undefined) {
         lvl = LoggingLevels.INFO;
     }
+    console.log("level is " + lvl);
     if (lvl >= loggingLevels.console) console.log(str);
     if (lvl >= loggingLevels.applog)  LOG_APPENDER.append(str + "\n");
 }
