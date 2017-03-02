@@ -2,10 +2,6 @@ function run(/* arguments, credentials */) {
 
     load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/testing/js_lambda/gestalt-sdk.js');
 
-    console.log(
-        JSON.stringify(loggingLevels)
-    );
-
     META = get_meta();
     log("found meta: " + META.url, LoggingLevels.DEBUG);
     var root_org = find_org("root");
