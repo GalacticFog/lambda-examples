@@ -15,15 +15,14 @@ function run(event, context) {
 	var u = "https://api.twilio.com/2010-04-01/Accounts/" + eventData.accountSid + "/Messages/?To=%2B" + eventData.to + "&From=%2B" + eventData.from;
 
 
-	var AsyncHttpClient   = Java.type('com.ning.http.client.AsyncHttpClient');
+	var AsyncHttpClient   = Java.type('org.asynchttpclient.DefaultAsyncHttpClient');
 	var CompletableFuture = Java.type('java.util.concurrent.CompletableFuture');
 	var client = new AsyncHttpClient();
-	var pc = client.prepareConnect(u)
-		.setMethod("POST")
+	var pc = client.preparePost(u)
 		.addHeader("Authorization", basicAuth)
-		.addParameter("To", eventData.to)
-		.addParameter("From", eventData.from)
-		.addParameter("Body", eventData.body)
+		.addFormParam("To", eventData.to)
+		.addFormParam("From", eventData.from)
+		.addFormParam("Body", eventData.body)
 
 	var resp = _handleResponse(pc.execute().get());
 	console.log( resp );
