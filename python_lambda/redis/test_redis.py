@@ -1,8 +1,11 @@
 import sys
+import json
 import redis 
 
-data = sys.argv[1].data
+print(sys.argv[1])
 
-r = redis.StrictRedis(host=data.redis.host, port=data.redis.port=6379, db=0)
+redis_opts = json.loads(sys.argv[1])["data"]["redis"]
+
+r = redis.StrictRedis(host=redis_opts["host"], port=redis_opts["port"], db=0)
 r.set('foo', 'bar')
 print(r.get('foo'))
