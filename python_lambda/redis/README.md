@@ -1,4 +1,4 @@
-# Using local package for Python lambdas
+# Packing custom modules with Python lambdas
 
 The lambda executor supporting the Python runtime (`galacticfog/gestalt-laser-executor-python`) includes a number of popular modules. It is possible to use modules that are not present in the
 runtime (including private/proprietary packages) by packaging them with the lambda script.
