@@ -24,3 +24,11 @@ Upload the zip archive to a local that is avaible to the executors running on yo
 
 For this test lambda, you will also need to set Variable indicating the hostname and port for the redis server:
 ![setting lambda variables in the gestalt UI](https://github.com/GalacticFog/lambda-examples/raw/master/python_lambda/redis/img/setting-lambda-vars.png "Setting redis variables for the lambda")
+
+In this case, it is using a redis container spun on on the cluster. The lambda is able to successfully connect to the server, set values and retrieve them: 
+```
+creating redis client against demo-redis.example-lambdas.demo.root.marathon.l4lb.thisdcos.directory:6379
+setting foo=bar
+retrieving foo:
+bar
+```
