@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 try:
   from lxml import etree
   print("running with lxml.etree")
