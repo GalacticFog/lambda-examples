@@ -20,7 +20,7 @@ zip -r ../redis.zip *
 
 Upload the zip archive to a local that is avaible to the executors running on your cluster. Register a new lambda, making sure to mark the `Compressed` checkbox next to the
 `Package URL`. The `Lambda Handler` box should contain the relative path to the lambda script, with respect to the archive: 
-![creating the redis lambda in the gestalt UI](/img/redis-lambda-create.png?raw=true "Creating the redis lambda")
+![creating the redis lambda in the gestalt UI](https://github.com/GalacticFog/lambda-examples/raw/master/python_lambda/redis/img/redis-lambda-create.png "Creating the redis lambda")
 
 For this test lambda, you will also need to set Variable indicating the hostname and port for the redis server:
-![setting lambda variables in the gestalt UI](/img/setting-lambda-vars.png?raw=true "Setting redis variables for the lambda")
+![setting lambda variables in the gestalt UI](https://github.com/GalacticFog/lambda-examples/raw/master/python_lambda/redis/img/setting-lambda-vars.png "Setting redis variables for the lambda")
