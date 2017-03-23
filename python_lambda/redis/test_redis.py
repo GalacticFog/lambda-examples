@@ -1,11 +1,13 @@
 import sys
-import json
 import redis 
+import os
 
-print(sys.argv[1])
+redis_host = os.getenv('REDIS_HOST', 'localhost')
+redis_port = os.getenv('REDIS_PORT', '6379')
 
-redis_opts = json.loads(sys.argv[1])["data"]["redis"]
-
-r = redis.StrictRedis(host=redis_opts["host"], port=redis_opts["port"], db=0)
+print('creating redis client against {}:{}'.format(redis_host,redis_port))
+r = redis.StrictRedis(host=redis_host, port=redis_port, db=0)
+print('setting foo=bar')
 r.set('foo', 'bar')
+print('retrieving foo:')
 print(r.get('foo'))
