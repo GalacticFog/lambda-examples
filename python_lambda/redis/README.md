@@ -15,7 +15,7 @@ pip2.7 install -t . redis
 
 Then package the lambda script, all local modules, and any other scripts or resources into a zip archive: 
 ```
-zip -r ../redis.zip *
+zip -r test_redis.zip redis* *.py
 ```
 
 Upload the zip archive to a local that is avaible to the executors running on your cluster. Register a new lambda, making sure to mark the `Compressed` checkbox next to the
