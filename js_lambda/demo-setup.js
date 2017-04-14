@@ -54,24 +54,6 @@ function run(/* arguments, credentials */) {
         else return "Code " + code + " on attempt to create new org.";
     }
 
-    // create marathon-dev provider in new org
-    create_provider(demo_org, {
-            name: "marathon-dev",
-            resource_type: "Gestalt::Configuration::Provider::Marathon",
-            description: "",
-            properties: {
-                locations: [ { name: "dcos-cluster", enabled: true } ],
-                config: {
-                    url: "http://master.mesos/service/marathon-dev",
-                    auth: { scheme: "Basic", username: "open", password: "sesame" },
-                    networks: [ { name: "HOST" }, { name: "BRIDGE" } ]
-                }
-            }
-        }
-    );
-    add_entitlements(root_org, root_org, "provider.view", trading_grp, DO_ASYNC);
-    log("");
-
     // create and populate demo sub-orgs: hr, it, debt, equity, private-client
     var equityDemo = populate_demo_org("equity",         "Equity Division",         demo_org);
     var HrDemo     = populate_demo_org("hr",             "HR Division",             demo_org);
