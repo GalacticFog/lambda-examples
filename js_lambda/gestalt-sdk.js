@@ -1,4 +1,4 @@
-var AsyncHttpClient   = Java.type('com.ning.http.client.AsyncHttpClient');
+var AsyncHttpClient   = Java.type('org.asynchttpclient.DefaultAsyncHttpClient');
 var CompletableFuture = Java.type('java.util.concurrent.CompletableFuture');
 
 var META   = null;
