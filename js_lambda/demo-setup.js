@@ -9,12 +9,12 @@ function run(/* arguments, credentials */) {
     log("found root org:" + root_org.id + "\n", LoggingLevels.DEBUG);
 
     // find kong provider
-    var kong = list_providers(root_org, ProviderTypes.APIGATEWAY);
-    if (kong.length == 0) {
-        log("error: Could not find any ApiGateway providers");
+    var laser = list_providers(root_org, ProviderTypes.LAMBDA);
+    if (laser.length == 0) {
+        log("error: Could not find any Lambda providers");
         return getLog();
     }
-    else kong = kong[0];
+    else laser = laser[0];
     log("")
 
     try {
@@ -86,25 +86,23 @@ function run(/* arguments, credentials */) {
         properties: {
             code_type: "package",
             compressed: false,
-            cpus: 0.,
+            cpus: 0.2,
             env: {},
             handler: "default-migrate;migrate",
-            headers: {},
+            headers: {
+                Accept: "text/plain"
+            },
             memory: 512,
             package_url: "https://raw.githubusercontent.com/GalacticFog/lambda-examples/1.0.1/js_lambda/default-migrate.js",
-            providers: [
-                {
-                    id: kong.id,
-                    locations: kong.properties.locations.map(function(l) {return {
-                        name: l.name,
-                        enabled: l.enabled,
-                        selected: true
-                    }})
-                }
-            ],
+            periodic_info: {
+                payload: {}
+            },
+            provider: {
+                id: laser.id,
+                locations: []
+            },
             public: true,
             runtime: "nodejs",
-            synchronous: false,
             timeout: 120
         }
     });

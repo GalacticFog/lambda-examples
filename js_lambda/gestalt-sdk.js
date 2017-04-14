@@ -12,8 +12,14 @@ var EnvironmentTypes = {
 };
 
 var ProviderTypes = {
-    APIGATEWAY: "ApiGateway",
-    MARATHON: "Marathon"
+    // for search
+    GATEWAYMANAGER: "GatewayManager",
+    KONG: "Kong",
+    CAAS: "CaaS",
+    LAMBDA: "Lambda",
+    // for create
+    DCOS: "Gestalt::Configuration::Provider::CaaS::DCOS",
+    KUBE: "Gestalt::Configuration::Provider::CaaS::Kubernetes"
 };
 
 var FORCE_DELETE = true;
