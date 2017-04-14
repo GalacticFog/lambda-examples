@@ -320,7 +320,7 @@ function _REST_JSON(method, endpoint, payload, async, fResponse) {
     var _async = async ? async : false; // just being explicit that the default here is 'false'
     if (_async) {
         if (!fResponse) fResponse = new CompletableFuture();
-        pc.execute(new com.ning.http.client.AsyncCompletionHandler({
+        pc.execute(new org.asynchttpclient.AsyncCompletionHandler({
             onCompleted: function(response) {
                 fResponse.complete(_handleResponse(response));
             }
