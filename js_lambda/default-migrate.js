@@ -1,10 +1,11 @@
-function migrate(args, creds) {
+function migrate(args, ctx) {
 
     load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/update-async/js_lambda/gestalt-sdk.js');
 
     var args = JSON.parse( args );
+    var ctx  = JSON.parse( ctx );
 
-    META = get_meta(args, creds);
+    META = get_meta(args, ctx.creds);
     log("[init] found meta: " + META.url);
 
     var prv_id   = args.provider_id;

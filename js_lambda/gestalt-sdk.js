@@ -246,6 +246,10 @@ function find_environment(parent_org, environment_id, async) {
     return _GET("/" + fqon(parent_org) + "/environments/" + environment_id, async);
 }
 
+function find_provider(parent_org, provider_id, async) {
+    return _GET("/" + fqon(parent_org) + "/providers/" + provider_id, async);
+}
+
 function delete_org(org, force, async) {
     var _force = force ? force : false;
     log("Deleting org " + fqon(org));
