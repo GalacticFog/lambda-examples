@@ -2,8 +2,8 @@ function migrate(args, ctx) {
 
     load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/update-async/js_lambda/gestalt-sdk.js');
 
-    var args = JSON.parse( args );
-    var ctx  = JSON.parse( ctx );
+    args = JSON.parse( args );
+    ctx  = JSON.parse( ctx );
 
     META = get_meta(args, ctx.creds);
     log("[init] found meta: " + META.url);
@@ -15,11 +15,18 @@ function migrate(args, ctx) {
 
     var parent_org = find_org(args.fqon);
     var parent_env = find_environment(parent_org, args.environment_id);
+    var tgt_provider = find_provider(parent_org, prv_id);
+    if ( ! tgt_provider ) {
+        log("ERROR: could not locate provider " + prv_id + " in org " + parent_org);
+        return getLog();
+    }
 
+    var new_cntr;
     try {
         var op = cur_cntr.properties;
         var cur_num_instances = JSON.parse(op.num_instances);
-        var new_cntr = create_container(parent_org, parent_env, {
+        var new_net = determineTargetNetwork(cur_cntr, tgt_provider);
+        new_cntr = create_container(parent_org, parent_env, {
             name:        cur_cntr.name,
             description: cur_cntr.description,
             properties: {
@@ -32,7 +39,7 @@ function migrate(args, ctx) {
                 disk:           op.disk,
                 container_type: op.container_type,
                 image:          op.image,
-                network:        op.network,
+                network:        new_net,
                 health_checks:  op.health_checks ? op.health_checks : [],
                 port_mappings:  op.port_mappings ? op.port_mappings : [],
                 labels:         op.labels        ? op.labels        : {},
@@ -61,4 +68,32 @@ function migrate(args, ctx) {
     log("Deleted old container.");
 
     return getLog();
+}
+
+function determineTargetNetwork(curCntr, tgtProvider) {
+    var curNetwork = curCntr.properties.network;
+    var providerNetworks = tgtProvider.properties.networks;
+    // simple case: current container network is present in target provider available networks
+    for each (n in providerNetworks) if ( !n && n.name == curNetwork ) return n.name;
+    // next simple case: kubernetes provider doesn't care, so just return current network
+    if (tgtProvider.resource_type === 'Gestalt::Configuration::Provider::CaaS::Kubernetes') return curNetwork;
+    // hard case: DCOS
+    if (tgtProvider.resource_type === 'Gestalt::Configuration::Provider::CaaS::DCOS') {
+        // if DC/OS provider has an overlay network registered, use that
+        var overlayNet = findOverlayNetwork(providerNetworks);
+        if ( !overlayNet ) return overlayNet;
+        // otherwise, fallback to BRIDGE networking if available
+        var bridgeNet = findBridgeNetwork(providerNetworks);
+        if ( !bridgeNet ) return bridgeNet;
+    }
+    // otherwise, throw exception
+    throw "Could not determine network strategy";
+}
+
+function findOverlayNetwork(networks) {
+    for each (n in networks) if (n.name != 'BRIDGE' && n.name != 'HOST') return n.name;
+}
+
+function findBridgeNetwork(networks) {
+    for each (n in networks) if (n.name === 'BRIDGE') return n.name;
 }
