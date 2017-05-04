@@ -177,7 +177,7 @@ function create_migrate_policy(base_org, environment, lambda) {
     _POST("/" + fqon(base_org) + "/policies/" + pol.id + "/rules", {
         name: "migration-handler",
         description: "execute migrate lambda on container.migrate.pre",
-        resource_type: "Gestalt::Resource::Policy::Rule::Event",
+        resource_type: "Gestalt::Resource::Rule::Event",
         properties: {
             actions: [ "container.migrate.pre" ],
             eval_logic: {},
