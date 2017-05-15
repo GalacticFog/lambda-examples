@@ -90,7 +90,7 @@ function log(a, lvl) {
 }
 
 function list_providers(org, provider_type) {
-    var endpoint = "/" + org.properties.fqon + "/providers?expand=true";
+    var endpoint = "/" + fqon(org) + "/providers?expand=true";
     if (provider_type) endpoint = endpoint + "&type=" + provider_type;
     return _GET(endpoint);
 }
@@ -276,7 +276,7 @@ function create_workspace(parent_org, name, description, async, f) {
 
 function create_lambda(parent_org, parent_env, lambda_payload) {
     log("Creating lambda " + parent_env.name + "/" + lambda_payload.name);
-    return _POST("/" + parent_org.properties.fqon + "/environments/" + parent_env.id + "/lambdas", lambda_payload);
+    return _POST("/" + fqon(parent_org) + "/environments/" + parent_env.id + "/lambdas", lambda_payload);
 }
 
 function create_environment(parent_org, parent_workspace, name, description, type, async, f) {
@@ -288,7 +288,7 @@ function create_environment(parent_org, parent_workspace, name, description, typ
             environment_type: type
         }
     };
-    return _POST("/" + parent_org.properties.fqon + "/workspaces/" + parent_workspace.id + "/environments", payload, async, f);
+    return _POST("/" + fqon(parent_org) + "/workspaces/" + parent_workspace.id + "/environments", payload, async, f);
 }
 
 function create_container(parent_org, parent_env, payload, async) {
