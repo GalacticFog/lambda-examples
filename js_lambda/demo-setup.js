@@ -93,7 +93,7 @@ function run(/* arguments, credentials */) {
                 Accept: "text/plain"
             },
             memory: 512,
-            package_url: "https://raw.githubusercontent.com/GalacticFog/lambda-examples/1.0.1/js_lambda/default-migrate.js",
+            package_url: "https://raw.githubusercontent.com/GalacticFog/lambda-examples/1.1.0/js_lambda/default-migrate.js",
             periodic_info: {
                 payload: {}
             },
