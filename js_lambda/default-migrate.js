@@ -8,10 +8,10 @@ function migrate(args, ctx) {
     META = get_meta(args, ctx.creds);
     log("[init] found meta: " + META.url);
 
-    var prv_id   = args.provider_id;
-    var cur_cntr = args.resource;
+    var prv_id  = args.provider_id;
+    var cur_app = args.resource;
 
-    log("Will migrate container " + disp(cur_cntr) + " to provider " + prv_id);
+    log("Will migrate container " + disp(cur_app) + " to provider " + prv_id);
 
     var parent_org = find_org(args.fqon);
     var parent_env = find_environment(parent_org, args.environment_id);
@@ -21,14 +21,15 @@ function migrate(args, ctx) {
         return getLog();
     }
 
-    var new_cntr;
+    var new_app;
     try {
-        var op = cur_cntr.properties;
+        var op = cur_app.properties;
         var cur_num_instances = JSON.parse(op.num_instances);
-        var new_net = determineTargetNetwork(cur_cntr, tgt_provider);
-        new_cntr = create_container(parent_org, parent_env, {
-            name:        cur_cntr.name,
-            description: cur_cntr.description,
+        var new_net = determineTargetNetwork(cur_app, tgt_provider);
+        log("new network is: " + new_net);
+        new_app = create_container(parent_org, parent_env, {
+            name:        cur_app.name,
+            description: cur_app.description,
             properties: {
                 provider: {
                     id: prv_id
@@ -57,10 +58,20 @@ function migrate(args, ctx) {
         log("ERROR: error creating container: response code " + err);
         return getLog();
     }
-    log("Created new container with id " + new_cntr.id);
+    log("Created new container with id " + new_app.id);
+
+    log("Updating ApiEndpoint targets");
+    var endpoints = list_container_apiendpoints(parent_org, cur_app);
+    for each (ep in endpoints) {
+        try {
+            update_endpoint_target(parent_org, ep, new_app);
+        } catch (err) {
+            log("WARNING: error updating apiendpoint: " + ep);
+        }
+    }
 
     try {
-        delete_container(parent_org, parent_env, cur_cntr);
+        delete_container(parent_org, parent_env, cur_app);
     } catch(err) {
         log("ERROR: error creating container: response code " + err);
         return getLog();
@@ -70,21 +81,37 @@ function migrate(args, ctx) {
     return getLog();
 }
 
-function determineTargetNetwork(curCntr, tgtProvider) {
-    var curNetwork = curCntr.properties.network;
-    var providerNetworks = tgtProvider.properties.networks;
+function determineTargetNetwork(curApp, tgtProvider) {
+    var curNetwork = curApp.properties.network;
+    log("current app network is " + curNetwork);
+    var providerNetworks = tgtProvider.properties.config.networks;
+    log("target provider networks are: " + JSON.stringify(providerNetworks));
     // simple case: current container network is present in target provider available networks
-    for each (n in providerNetworks) if ( !n && n.name == curNetwork ) return n.name;
+    for each (n in providerNetworks) {
+        log("examing provider network " + JSON.stringify(n));
+        if ( !n && n.name === curNetwork ) {
+            log("selected provider network " + JSON.stringify(n));
+            return n.name;
+        }
+    }
     // next simple case: kubernetes provider doesn't care, so just return current network
     if (tgtProvider.resource_type === 'Gestalt::Configuration::Provider::CaaS::Kubernetes') return curNetwork;
     // hard case: DCOS
     if (tgtProvider.resource_type === 'Gestalt::Configuration::Provider::CaaS::DCOS') {
         // if DC/OS provider has an overlay network registered, use that
+        log("looking for overlay network");
         var overlayNet = findOverlayNetwork(providerNetworks);
-        if ( !overlayNet ) return overlayNet;
+        if ( overlayNet ) {
+            log("selected overlay network: " + overlayNet);
+            return overlayNet;
+        }
         // otherwise, fallback to BRIDGE networking if available
+        log("looking for BRIDGE network");
         var bridgeNet = findBridgeNetwork(providerNetworks);
-        if ( !bridgeNet ) return bridgeNet;
+        if ( bridgeNet ) {
+            log("selected bridge network: " + bridgeNet);
+            return bridgeNet;
+        }
     }
     // otherwise, throw exception
     throw "Could not determine network strategy";
@@ -92,8 +119,26 @@ function determineTargetNetwork(curCntr, tgtProvider) {
 
 function findOverlayNetwork(networks) {
     for each (n in networks) if (n.name != 'BRIDGE' && n.name != 'HOST') return n.name;
+    return null;
 }
 
 function findBridgeNetwork(networks) {
     for each (n in networks) if (n.name === 'BRIDGE') return n.name;
+    return null;
+}
+
+function list_container_apiendpoints(org, container) {
+    var endpoint = "/" + fqon(org) + "/containers/" + container.id + "/apiendpoints?expand=true";
+    return _GET(endpoint);
+}
+
+function update_endpoint_target(org, endpoint, new_target) {
+    var patch = [{
+        op: "replace",
+        path: "/properties/implementation_id",
+        value: new_target.id
+    }];
+    log(JSON.stringify(patch));
+    var url = "/" + fqon(org) + "/apiendpoints/" + endpoint.id;
+    return _PATCH(url, patch);
 }
