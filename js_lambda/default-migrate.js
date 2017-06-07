@@ -1,6 +1,6 @@
 function migrate(args, ctx) {
 
-    load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/1.1.0/js_lambda/gestalt-sdk.js');
+    load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/1.2.0/js_lambda/gestalt-sdk.js');
 
     args = JSON.parse( args );
     ctx  = JSON.parse( ctx );
@@ -127,18 +127,3 @@ function findBridgeNetwork(networks) {
     return null;
 }
 
-function list_container_apiendpoints(org, container) {
-    var endpoint = "/" + fqon(org) + "/containers/" + container.id + "/apiendpoints?expand=true";
-    return _GET(endpoint);
-}
-
-function update_endpoint_target(org, endpoint, new_target) {
-    var patch = [{
-        op: "replace",
-        path: "/properties/implementation_id",
-        value: new_target.id
-    }];
-    log(JSON.stringify(patch));
-    var url = "/" + fqon(org) + "/apiendpoints/" + endpoint.id;
-    return _PATCH(url, patch);
-}
