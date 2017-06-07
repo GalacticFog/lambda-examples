@@ -1,7 +1,6 @@
 function promote(args, ctx) {
-    log("***** begin promote ************")
-
     load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/promote_policy/js_lambda/gestalt-sdk.js');
+    log("***** begin promote ************")
 
     args = JSON.parse( args );
     ctx  = JSON.parse( ctx );
