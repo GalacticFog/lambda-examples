@@ -89,12 +89,6 @@ function log(a, lvl) {
     if (lvl >= loggingLevels.applog)  LOG_APPENDER.append(str + "\n");
 }
 
-function list_providers(org, provider_type) {
-    var endpoint = "/" + fqon(org) + "/providers?expand=true";
-    if (provider_type) endpoint = endpoint + "&type=" + provider_type;
-    return _GET(endpoint);
-}
-
 function fqon(org) {
     return org.properties.fqon;
 }
@@ -203,11 +197,6 @@ function delete_user(parent_org, user) {
     return _DELETE("/" + fqon(parent_org) + "/users/" + user.id);
 }
 
-function delete_container(parent_org, parent_env, container, async) {
-    log("Deleting container " + disp(container) + " from " + fqon(parent_org) + "/environments/" + parent_env.id);
-    return _DELETE("/" + fqon(parent_org) + "/environments/" + parent_env.id + "/containers/" + container.id,async);
-}
-
 function create_group(parent_org, name, desc) {
     log("Creating group " + parent_org.name + "/" + name);
     return _POST("/" + fqon(parent_org) + "/groups", {
@@ -233,28 +222,28 @@ function add_user_to_group(parent_org, group, user) {
     _PATCH("/" + fqon(parent_org) + "/groups/" + group.id + "/users?id=" + user.id);
 }
 
+/*
+ * providers
+ */
+
 function create_provider(parent_org, provider_payload) {
     log("Creating provider " + provider_payload.name);
     return _POST("/" + fqon(parent_org) + "/providers", provider_payload);
 }
 
-function find_org(fqon, async) {
-    return _GET("/" + fqon, async);
-}
-
-function find_environment(parent_org, environment_id, async) {
-    return _GET("/" + fqon(parent_org) + "/environments/" + environment_id, async);
+function list_providers(org, provider_type) {
+    var endpoint = "/" + fqon(org) + "/providers?expand=true";
+    if (provider_type) endpoint = endpoint + "&type=" + provider_type;
+    return _GET(endpoint);
 }
 
 function find_provider(parent_org, provider_id, async) {
     return _GET("/" + fqon(parent_org) + "/providers/" + provider_id, async);
 }
 
-function delete_org(org, force, async) {
-    var _force = force ? force : false;
-    log("Deleting org " + fqon(org));
-    return _DELETE("/" + fqon(org) + "?force=" + _force, async);
-}
+/*
+ * orgs
+ */
 
 function create_org(parent_org, name, description, async) {
     log("Creating org " + parent_org.name + "/" + name);
@@ -265,19 +254,19 @@ function create_org(parent_org, name, description, async) {
     return _POST("/" + fqon(parent_org), payload, async)
 }
 
-function create_workspace(parent_org, name, description, async, f) {
-    log("Creating workspace " + parent_org.name + "/" + name);
-    var payload = {
-        description: description,
-        name: name
-    };
-    return _POST("/" + fqon(parent_org) + "/workspaces", payload, async, f);
+function find_org(fqon, async) {
+    return _GET("/" + fqon, async);
 }
 
-function create_lambda(parent_org, parent_env, lambda_payload) {
-    log("Creating lambda " + parent_env.name + "/" + lambda_payload.name);
-    return _POST("/" + fqon(parent_org) + "/environments/" + parent_env.id + "/lambdas", lambda_payload);
+function delete_org(org, force, async) {
+    var _force = force ? force : false;
+    log("Deleting org " + fqon(org));
+    return _DELETE("/" + fqon(org) + "?force=" + _force, async);
 }
+
+/*
+ * environments
+ */
 
 function create_environment(parent_org, parent_workspace, name, description, type, async, f) {
     log("Creating environment " + parent_workspace.name + "/" + name);
@@ -291,10 +280,86 @@ function create_environment(parent_org, parent_workspace, name, description, typ
     return _POST("/" + fqon(parent_org) + "/workspaces/" + parent_workspace.id + "/environments", payload, async, f);
 }
 
+function find_environment(parent_org, environment_id, async) {
+    return _GET("/" + fqon(parent_org) + "/environments/" + environment_id, async);
+}
+
+/*
+ * workspaces
+ */
+
+function create_workspace(parent_org, name, description, async, f) {
+    log("Creating workspace " + parent_org.name + "/" + name);
+    var payload = {
+        description: description,
+        name: name
+    };
+    return _POST("/" + fqon(parent_org) + "/workspaces", payload, async, f);
+}
+
+/*
+ * workspaces
+ */
+
+function create_lambda(parent_org, parent_env, lambda_payload) {
+    log("Creating lambda " + parent_env.name + "/" + lambda_payload.name);
+    return _POST("/" + fqon(parent_org) + "/environments/" + parent_env.id + "/lambdas", lambda_payload);
+}
+
+/*
+ * containers
+ */
+
 function create_container(parent_org, parent_env, payload, async) {
     log("Creating container " + payload.name + " in " + fqon(parent_org) + "/environments/" + parent_env.id);
     return _POST("/" + fqon(parent_org) + "/environments/" + parent_env.id + "/containers", payload, async);
 }
+
+function find_container_by_name(parent_org, parent_env, name) {
+    var endpoint = "/" + fqon(parent_org) + "/environments/" + parent_env.id + "/containers?expand=true";
+    var containers = _GET(endpoint);
+    for each (c in containers) if (c.name == name) return c;
+    return null;
+}
+
+function delete_container(parent_org, parent_env, container, async) {
+    log("Deleting container " + disp(container) + " from " + fqon(parent_org) + "/environments/" + parent_env.id);
+    return _DELETE("/" + fqon(parent_org) + "/environments/" + parent_env.id + "/containers/" + container.id,async);
+}
+
+function patch_container(parent_org, parent_env, container, patch, async) {
+    log("Patching container " + disp(container));
+    return _PATCH("/" + fqon(parent_org) + "/environments/" + parent_env.id + "/containers/" + container.id, patch, async);
+}
+
+/*
+ * apiendpoints
+ */
+
+function list_container_apiendpoints(org, container) {
+    var endpoint = "/" + fqon(org) + "/containers/" + container.id + "/apiendpoints?expand=true";
+    return _GET(endpoint);
+}
+
+function list_lambda_apiendpoints(org, lambda) {
+    var endpoint = "/" + fqon(org) + "/lambdas/" + lambda.id + "/apiendpoints?expand=true";
+    return _GET(endpoint);
+}
+
+function update_endpoint_target(org, endpoint, new_target) {
+    var patch = [{
+        op: "replace",
+        path: "/properties/implementation_id",
+        value: new_target.id
+    }];
+    log(JSON.stringify(patch));
+    var url = "/" + fqon(org) + "/apiendpoints/" + endpoint.id;
+    return _PATCH(url, patch);
+}
+
+/*
+ * REST utilities
+ */
 
 function _handleResponse(response) {
     var code = response.getStatusCode();
@@ -353,3 +418,4 @@ function _PUT(endpoint, payload, async, fResponse) {
 function _PATCH(endpoint, payload, async, fResponse) {
     return _REST_JSON("PATCH", endpoint, payload, async, fResponse);
 }
+

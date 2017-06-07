@@ -1,6 +1,7 @@
 function promote(args, ctx) {
+    log("***** begin promote ************")
 
-    load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/1.1.0/js_lambda/gestalt-sdk.js');
+    load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/promote_policy/js_lambda/gestalt-sdk.js');
 
     args = JSON.parse( args );
     ctx  = JSON.parse( ctx );
@@ -29,26 +30,24 @@ function promote(args, ctx) {
     log("located target app " + disp(tgt_app) );
 
     try {
-        patch_container(parent_org, tgt_env, tgt_app, [{
-            op: "replace",
-            path: "/properties/image",
-            value: cur_app.properties.image
-        }]);
+        patch_container(parent_org, tgt_env, tgt_app, [
+            replace("image", cur_app.properties.image),
+            replace("env",   cur_app.properties.env)
+        ]);
     } catch(err) {
         log("ERROR: error creating container: response code " + err);
         return getLog();
     }
+    log("Container successfully migrated.")
+
+    log("***** end promote **************")
     return "Container migrated.";
 }
 
-function find_container_by_name(parent_org, parent_env, name) {
-    var endpoint = "/" + fqon(parent_org) + "/environments/" + parent_env.id + "/containers?expand=true";
-    var containers = _GET(endpoint);
-    for each (c in containers) if (c.name == name) return c;
-    return null;
-}
-
-function patch_container(parent_org, parent_env, container, patch, async) {
-    log("Patching container " + disp(container));
-    return _PATCH("/" + fqon(parent_org) + "/environments/" + parent_env.id + "/containers/" + container.id, patch, async);
+function replace(prop_path, value) {
+    return {
+        op: "replace",
+        path: "/properties/" + prop_path,
+        value: value
+    }
 }
