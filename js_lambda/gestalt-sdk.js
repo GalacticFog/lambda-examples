@@ -333,8 +333,26 @@ function patch_container(parent_org, parent_env, container, patch, async) {
 }
 
 /*
+ * apis
+ */
+
+function create_api(parent_org, parent_env, payload, async) {
+    log("Creating api " + payload.name + " in " + fqon(parent_org) + "/environments/" + parent_env.id);
+    return _POST("/" + fqon(parent_org) + "/environments/" + parent_env.id + "/apis", payload, async);
+}
+
+function find_api(parent_org, api_id, async) {
+    return _GET("/" + fqon(parent_org) + "/apis/" + api_id, async);
+}
+
+/*
  * apiendpoints
  */
+
+function create_apiendpoint(parent_org, parent_api, payload, async) {
+    log("Creating api " + payload.name + " in " + fqon(parent_org) + "/apis/" + parent_api.id);
+    return _POST("/" + fqon(parent_org) + "/apis/" + parent_api.id + "/apiendpoints", payload, async);
+}
 
 function list_container_apiendpoints(org, container) {
     var endpoint = "/" + fqon(org) + "/containers/" + container.id + "/apiendpoints?expand=true";
