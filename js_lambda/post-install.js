@@ -8,19 +8,87 @@ function run(/* arguments, credentials */) {
     META = get_meta();
     log("found meta: " + META.url, LoggingLevels.DEBUG);
 
-    var root_org = find_org("root");
-    log("found root org:" + root_org.id + "\n", LoggingLevels.DEBUG);
+    var rootOrg = find_org("root");
+    log("found root org:" + rootOrg.id + "\n", LoggingLevels.DEBUG);
 
     //locate the laser service for root
-    var laser = list_providers(root_org, ProviderTypes.LAMBDA);
+    var laser = list_providers(rootOrg, ProviderTypes.LAMBDA);
     if (laser.length == 0) {
         log("error: Could not find any Lambda providers");
         return getLog();
     }
     else laser = laser[0];
 
+    exposeResults( laser, rootOrg );
+    logMaintenance( laser, rootOrg );
+
+    return getLog();
+}
+
+function logMaintenance( laser, rootOrg ) {
+    log( "adding a log cleanup lambda" );
+
+    //TODO : update the SDK with this type
+    var logProviders = list_providers(rootOrg, "Logging");
+    if (logProviders.length == 0) {
+        log("error: Could not find any Lambda providers");
+        return getLog();
+    }
+
+    //we either need a system fqon and environment, or else we need to create one
+    var fqon = get_env( "SYSTEM_FQON", "root" );
+    var systemOrg = find_org( fqon );
+    var systemWorkspace = find_workspace_by_name( systemOrg, "gestalt-system" );
+    if( systemWorkspace == null ) {
+        systemWorkspace = create_workspace( systemOrg, "gestalt-system", "gestalt-system" );
+    }
+
+    var systemEnvironment = find_environment_by_name( systemOrg, "gestalt-system" );
+    if( systemEnvironment == null ) {
+        systemEnvironment = create_environment( systemOrg, systemWorkspace, "gestalt-system", "gestalt-system", EnvironmentTypes.PRODUCTION );
+    }
+
+    for each( provider in logProviders ) {
+        var logCoordinates = getServiceCoordinates( provider );
+        var logUrl = "http://" + logCoordinates.host + ":" + logCoordinates.port + "/clean";
+        var lambdaName = provider.name + "-cleaner";
+        var lambdaPayload = createCleanerLambda( laser, logUrl, lambdaName );
+        var lambda = find_lambda_by_name( systemOrg, lambdaName );
+        if( lambda == null ) {
+            log( "creating lambda : " + lambdaName );
+            lambda = create_lambda( systemOrg, systemEnvironment, lambdaPayload );
+        }
+    }
+}
+
+function find_lambda_by_name( parent_org, name, async ) {
+    return find_meta_thing_by_name( parent_org, name, "lambdas", async );
+}
+
+function find_workspace_by_name( parent_org, name, async ) {
+    return find_meta_thing_by_name( parent_org, name, "workspaces", async );
+}
+
+function find_environment_by_name( parent_org, name, async ) {
+    return find_meta_thing_by_name( parent_org, name, "environments", async );
+}
+
+function find_meta_thing_by_name(parent_org, name, meta_thing, async) {
+    var things = _GET("/" + fqon(parent_org) + "/" + meta_thing, async);
+    for each( thing in things ) {
+        if( thing.name == name ) {
+            return thing;
+        }
+    }
+
+    return null;
+}
+
+function exposeResults( laser, rootOrg ) {
+    log( "exposing results endpoint..." )
+
     //locate the gateway service for root
-    var gateway = list_providers(root_org, ProviderTypes.GATEWAYMANAGER);
+    var gateway = list_providers(rootOrg, ProviderTypes.GATEWAYMANAGER);
     if (gateway.length == 0) {
         log("error: Could not find any Gateway providers");
         return getLog();
@@ -88,6 +156,47 @@ function getServiceCoordinates( provider ) {
         host : provider.properties.config.env.public.SERVICE_HOST,
         port : provider.properties.config.env.public.SERVICE_PORT
     }
+}
+
+function createCleanerLambda( laser, logUrl, name ) {
+
+    var lambda = {
+        name: name,
+        description: name,
+        properties: {
+            code: "ZnVuY3Rpb24gcnVuKCkgewogICAgcmV0dXJuICJIZWxsbyBXb3JsZCI7Cn0=",
+            code_type: "code",
+            cpus: 0.1,
+            env: {
+                LOG_URL: logUrl
+            },
+            handler: "run",
+            headers: {
+                "Accept": "text/plain"
+            },
+            periodic_info: {
+                payload: {
+                    eventName: "test",
+                    data: {
+                        eventName: "no matter",
+                        data: {}
+                    }
+                },
+                schedule: "R-1/2017-02-07T02:0:00Z/PT1D",
+                timezone: "Africa/Accra"
+            },
+            memory: 512,
+            provider: {
+                "id": laser.id,
+                "locations": []
+            },
+            public: true,
+            runtime: "nodejs",
+            timeout: 30
+        }
+    };
+
+    return lambda;
 }
 
 /*
