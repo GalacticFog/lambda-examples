@@ -350,7 +350,7 @@ function find_api(parent_org, api_id, async) {
  */
 
 function create_apiendpoint(parent_org, parent_api, payload, async) {
-    log("Creating api " + payload.name + " in " + fqon(parent_org) + "/apis/" + parent_api.id);
+    log("Creating apiendpoint " + payload.name + " in " + fqon(parent_org) + "/apis/" + parent_api.id);
     return _POST("/" + fqon(parent_org) + "/apis/" + parent_api.id + "/apiendpoints", payload, async);
 }
 
