@@ -332,6 +332,11 @@ function patch_container(parent_org, parent_env, container, patch, async) {
     return _PATCH("/" + fqon(parent_org) + "/environments/" + parent_env.id + "/containers/" + container.id, patch, async);
 }
 
+function update_container(parent_org, parent_env, container, async) {
+    log("Updating container " + disp(container));
+    return _PUT("/" + fqon(parent_org) + "/environments/" + parent_env.id + "/containers/" + container.id, container, async);
+}
+
 /*
  * apis
  */
@@ -378,6 +383,13 @@ function update_endpoint_target(org, endpoint, new_target) {
     log(JSON.stringify(patch));
     var url = "/" + fqon(org) + "/apiendpoints/" + endpoint.id;
     return _PATCH(url, patch);
+}
+
+function find_endoint_by_name(parent_org, parent_api, name) {
+    var endpoint = "/" + fqon(parent_org) + "/apis/" + parent_api.id + "/apiendpoints?expand=true";
+    var eps = _GET(endpoint);
+    for each (ep in eps) if (ep.name == name) return ep;
+    return null;
 }
 
 /*
