@@ -366,7 +366,7 @@ function list_lambda_apiendpoints(org, lambda) {
 
 function delete_endpoint(parent_org, endpoint, async) {
     log("Deleting endpoint " + disp(endpoint) + " from " + fqon(parent_org));
-    return _DELETE("/" + fqon(parent_org) + "/endpoints/" + endpoint.id, async);
+    return _DELETE("/" + fqon(parent_org) + "/apiendpoints/" + endpoint.id, async);
 }
 
 function update_endpoint_target(org, endpoint, new_target) {
