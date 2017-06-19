@@ -43,7 +43,7 @@ function deploy(args, ctx) {
 
     var review_app_name = "review-" + git_ref;
 
-    var new_app;
+    var app;
     try {
         var payload = {
             name:        "docs-review-" + git_ref,
@@ -73,27 +73,41 @@ function deploy(args, ctx) {
                 force_pull :    true
             }
         };
-        log("container create payload: " + JSON.stringify(payload), LoggingLevels.DEBUG);
-        new_app = create_container(tgt_org, tgt_env, payload);
+        log("container update/create payload: " + JSON.stringify(payload), LoggingLevels.DEBUG);
+
+        app = find_container_by_name(tgt_org, tgt_env, payload.name);
+        if ( app ) {
+            app = patch_container(tgt_org, tgt_env, app, [
+                patch_replace("image", payload.properties.image),
+                patch_replace("labels", payload.properties.labels)
+            ]);
+        } else {
+            app = create_container(tgt_org, tgt_env, payload);
+        }
     } catch(err) {
         log("ERROR: error creating container: response code " + err);
         return getLog();
     }
-    log("Created new container with id " + new_app.id);
+    log("Created new container with id " + app.id);
 
-    var new_apiendpoint = create_apiendpoint(tgt_org, tgt_api, {
-        name: "docs-review-" + git_ref,
-        properties: {
-            implementation_type: "container",
-            implementation_id: new_app.id,
-            container_port_name: "web",
-            resource: "/docs-review-" + git_ref + "/"
-        }
-    });
-    var new_url = "https://gtw1.demo7.galacticfog.com/" + tgt_api.name + new_apiendpoint.properties.resource
-    log("Created api-endpoint for container with id " + new_apiendpoint.id + " at " + new_url);
+    var apiendpoint = find_endoint_by_name(tgt_org, tgt_api, "docs-review-" + git_ref);
+    if ( ! apiendpoint ) {
+        apiendpoint = create_apiendpoint(tgt_org, tgt_api, {
+            name: "docs-review-" + git_ref,
+            properties: {
+                implementation_type: "container",
+                implementation_id: app.id,
+                container_port_name: "web",
+                resource: "/docs-review-" + git_ref + "/"
+            }
+        });
+    } else {
+        log("ApiEndpoint already existed, will leave it intact.");
+    }
+    var new_url = "https://gtw1.demo7.galacticfog.com/" + tgt_api.name + apiendpoint.properties.resource
+    log("Created api-endpoint for container with id " + apiendpoint.id + " at " + new_url);
 
-    log("Searching for GitLab Environment");
+    log("Searching for associated GitLab Environment");
     var gitlab_env = find_gitlab_environment(gitlab_url, gitlab_token, review_app_name);
     if ( gitlab_env ) {
         log("Calling back to GitLab to provision new environment");
@@ -130,7 +144,6 @@ function stop(args, ctx) {
     }
 
     var git_ref    = ctx.params.ref[0];
-    var review_app_name = "review-" + git_ref;
 
     log("Will delete deployment associated with commit " + git_ref);
 
@@ -176,3 +189,10 @@ function update_gitlab_environment(base_url, token, gitlab_env, payload) {
     return _handleResponse(pc.execute().get());
 }
 
+function patch_replace(prop_path, value) {
+    return {
+        op: "replace",
+        path: "/properties/" + prop_path,
+        value: value
+    }
+}

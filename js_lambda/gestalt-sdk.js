@@ -332,9 +332,9 @@ function patch_container(parent_org, parent_env, container, patch, async) {
     return _PATCH("/" + fqon(parent_org) + "/environments/" + parent_env.id + "/containers/" + container.id, patch, async);
 }
 
-function update_container(parent_org, parent_env, container, async) {
+function update_container(parent_org, container, async) {
     log("Updating container " + disp(container));
-    return _PUT("/" + fqon(parent_org) + "/environments/" + parent_env.id + "/containers/" + container.id, container, async);
+    return _PUT("/" + fqon(parent_org) + "/containers/" + container.id, container, async);
 }
 
 /*

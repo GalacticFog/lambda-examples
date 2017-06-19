@@ -43,31 +43,18 @@ function promote(args, ctx) {
     }
     log("Container successfully migrated.");
 
-    log("Listing endpoints for source container");
-    var endpoints = list_container_apiendpoints(parent_org, cur_app);
-    for each (e in endpoints) {
-        delete_endpoint(parent_org, e);
-    }
-    delete_container(parent_org, cur_env, cur_app);
-
     log("Searching for GitLab Environment");
-    var gitlab_env = find_gitlab_environment(gitlab_url, gitlab_token, "review-" + git_ref);
     var prod_env = find_gitlab_environment(gitlab_url, gitlab_token, "production");
-    if ( gitlab_env ) {
-        if ( prod_env ) delete_gitlab_environment(gitlab_url, gitlab_token, prod_env);
-
-        log("Calling back to GitLab to update production environment");
-        update_gitlab_environment(gitlab_url, gitlab_token, gitlab_env, {
-            name: "production",
-            external_url: "https://gtw1.demo7.galacticfog.com/equity-docs/"
-        });
-    } else if ( ! prod_env ) {
-        create_gitlab_environment(gitlab_url, gitlab_token, {
+    if ( prod_env ) {
+        update_gitlab_environment(gitlab_url, gitlab_token, prod_env, {
             name: "production",
             external_url: "https://gtw1.demo7.galacticfog.com/equity-docs/"
         });
     } else {
-        log("WARNING: Could not locate GitLab environment in order to update external_url");
+        create_gitlab_environment(gitlab_url, gitlab_token, {
+            name: "production",
+            external_url: "https://gtw1.demo7.galacticfog.com/equity-docs/"
+        });
     }
 
     log("***** end promote **************");
