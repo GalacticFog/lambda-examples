@@ -80,15 +80,6 @@ function find_gitlab_environment(base_url, token, environment_name) {
     return null;
 }
 
-function delete_gitlab_environment(base_url, token, gitlab_env) {
-    var url = base_url + "/environments/" + gitlab_env.id;
-    var pc = client.prepareConnect(url)
-        .setMethod("DELETE")
-        .addHeader("PRIVATE-TOKEN", token);
-    log("DELETE " + url, LoggingLevels.DEBUG);
-    return _handleResponse(pc.execute().get());
-}
-
 function update_gitlab_environment(base_url, token, gitlab_env, payload) {
     var url = base_url + "/environments/" + gitlab_env.id;
     var pc = client.prepareConnect(url)
