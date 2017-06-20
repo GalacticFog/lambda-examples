@@ -298,7 +298,7 @@ function create_workspace(parent_org, name, description, async, f) {
 }
 
 /*
- * workspaces
+ * lambdas
  */
 
 function create_lambda(parent_org, parent_env, lambda_payload) {
@@ -390,6 +390,52 @@ function find_endoint_by_name(parent_org, parent_api, name) {
     var eps = _GET(endpoint);
     for each (ep in eps) if (ep.name == name) return ep;
     return null;
+}
+
+/*
+ * policy
+ */
+
+function create_policy(base_org, environment, name, description) {
+    log("creating new policy in " + environment.name);
+    return _POST("/" + fqon(base_org) + "/environments/" + environment.id + "/policies", {
+        name: name,
+        description: description ? description : "",
+        properties: {}
+    });
+}
+
+function create_event_rule(base_org, policy, name, description, lambdaId, actions) {
+    log("creating new event rule in " + policy.name);
+    return _POST("/" + fqon(base_org) + "/policies/" + policy.id + "/rules", {
+        name: name,
+        description: description ? description : "",
+        properties: {
+            parent: {},
+            lambda: lambdaId,
+            actions: actions
+        },
+        resource_type: "Gestalt::Resource::Rule::Event"
+    });
+}
+
+function create_limit_rule(base_org, policy, name, description, actions, property, operator, value) {
+    log("creating new limit rule in " + policy.name);
+    return _POST("/" + fqon(base_org) + "/policies/" + policy.id + "/rules",{
+        name: name,
+        description: description ? description : "",
+        properties: {
+            parent: {},
+            strict: false,
+            actions: actions,
+            eval_logic: {
+                property: property,
+                operator: operator,
+                value: value
+            }
+        },
+        resource_type: "Gestalt::Resource::Rule::Limit"
+    });
 }
 
 /*

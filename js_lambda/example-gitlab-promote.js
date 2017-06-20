@@ -12,7 +12,6 @@ function promote(args, ctx) {
     var cur_env_id = args.environment_id;
 
     var cur_app    = args.resource;
-    var git_ref   = cur_app.properties.labels.GIT_REF;
 
     var parent_org = find_org(args.fqon);
 
