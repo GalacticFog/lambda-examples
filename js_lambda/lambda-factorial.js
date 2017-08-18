@@ -2,14 +2,16 @@ function run(data,ctx) {
     data = JSON.parse(data);
     ctx = JSON.parse(ctx);
     if (ctx.method === "POST") {
-        return doUpper(data);
+        return factorial(data).toString();
     } else {
         return ux;
     }
 }
 
-function doUpper(data) {
-    return data.toUpperCase();
+function factorial(data) {
+    if ( data === 1 ) return 1;
+    if ( data < 1 ) return "undefined";
+    return data * factorial(data-1);
 }
 
 var MultiString = function(f) {
@@ -23,18 +25,19 @@ var ux = MultiString(function() {/**
  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
  <script>
  $(document).ready(function(){
-    $("#makeUpper").click(function(){
+    $("#computeFactorial").click(function(){
+        var arg = $("#arg").val();
         $.ajax("#",{
             data: JSON.stringify({
                 eventName: "",
-                data: $("#data").val()
+                data: parseInt(arg)
             }),
             method: "POST",
             processData: false,
             contentType: "application/json",
             dataType: "html"
          }).done(function(data){
-            $("#data").val(data);
+            $("#result").html("Factorial of " + arg + " is " + data);
         });
     });
 });
@@ -42,11 +45,15 @@ var ux = MultiString(function() {/**
  </head>
  <body>
 
- <h1>Lambda Composition Example</h1>
+ <h1>Simple Lambda Example</h1>
 
- <textarea cols="100" rows="20" id="data"></textarea>
- <p>
- <button id="makeUpper">Execute upperCase() lambda</button>
+ <input type="text" name="arg" id="arg" />
+ <br/>
+ <button id="computeFactorial">Compute Factorial</button>
+
+ <br/>
+
+ <div id="result"></div>
 
  </body>
  </html>
