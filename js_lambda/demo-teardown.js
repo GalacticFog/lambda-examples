@@ -1,6 +1,6 @@
 function run(/* arguments, credentials */) {
 
-    load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/1.2.0/js_lambda/gestalt-sdk.js');
+    load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/1.3.0/js_lambda/gestalt-sdk.js');
 
     META = get_meta();
     log("found meta: " + META.url, LoggingLevels.DEBUG);

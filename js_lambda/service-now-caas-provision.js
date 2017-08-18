@@ -1,5 +1,5 @@
 function run(args, ctx) {
-    load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/gitlab-demo/js_lambda/gestalt-sdk.js');
+    load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/1.3.0/js_lambda/gestalt-sdk.js');
     log("***** begin servicenow caas provisioning ************\n");
 
     args = JSON.parse( args );
