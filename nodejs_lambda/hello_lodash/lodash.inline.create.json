@@ -1,0 +1,18 @@
+{
+  "eventFilter": "FAKE1",
+	"public" : true,
+  "artifactDescription": {
+		"code": "dmFyIGV4cG9ydHMgPSBtb2R1bGUuZXhwb3J0cyA9IHt9OwpleHBvcnRzLmxvZGFzaCA9IGZ1bmN0aW9uKGV2ZW50LCBjb250ZXh0KSB7CiAKICB2YXIgXyA9IHJlcXVpcmUoJ2xvZGFzaCcpOwogIHZhciBqdW5reUFycmF5ID0gWyAxLCAwLCAnJywgNCwgMiwgZmFsc2UsIDgsIG51bGwgXTsKICB2YXIgcmV0dXJuU3RyaW5nID0gImhlcmUncyBhIGp1bmt5IGFycmF5IDogIiArIGp1bmt5QXJyYXkgKyAiXG4iOwogIHZhciBiZXR0ZXJBcnJheSA9IF8uY29tcGFjdCgganVua3lBcnJheSApOwogIHJldHVyblN0cmluZyArPSAiaGVyZSdzIGEgY2xlYW5lciBhcnJheSA6ICIgKyBiZXR0ZXJBcnJheSArICJcbiI7CgoJcmV0dXJuIHJldHVyblN0cmluZzsKfTsK",
+    "description": "super simple twilio call lambda",
+    "handler": "lodash",
+    "memorySize": 511,
+    "cpus": 0.1,
+    "publish": false,
+    "role": "arn:aws:iam::245814043176:role/GFILambda",
+    "runtime": "nodejs",
+    "timeoutSecs": 180,
+		"headers" : {
+			"Accept" : "application/js"
+		}
+  }
+}

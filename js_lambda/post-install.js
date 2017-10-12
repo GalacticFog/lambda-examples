@@ -164,7 +164,7 @@ function createCleanerLambda( laser, logUrl, name ) {
         name: name,
         description: name,
         properties: {
-            code: "ZnVuY3Rpb24gcnVuKCkgewogICAgcmV0dXJuICJIZWxsbyBXb3JsZCI7Cn0=",
+            code: "dmFyIEFzeW5jSHR0cENsaWVudCAgID0gSmF2YS50eXBlKCdvcmcuYXN5bmNodHRwY2xpZW50LkRlZmF1bHRBc3luY0h0dHBDbGllbnQnKTsKdmFyIENvbXBsZXRhYmxlRnV0dXJlID0gSmF2YS50eXBlKCdqYXZhLnV0aWwuY29uY3VycmVudC5Db21wbGV0YWJsZUZ1dHVyZScpOwoKZnVuY3Rpb24gcnVuKC8qIGFyZ3VtZW50cywgY3JlZGVudGlhbHMgKi8pIHsKCiAgICBsb2FkKCdodHRwczovL3Jhdy5naXRodWJ1c2VyY29udGVudC5jb20vR2FsYWN0aWNGb2cvbGFtYmRhLWV4YW1wbGVzLzEuMi4wL2pzX2xhbWJkYS9nZXN0YWx0LXNkay5qcycpOwoKICAgIHZhciBsb2dVcmwgPSBnZXRfZW52KCAiTE9HX1VSTCIgKTsKCiAgICB2YXIgcGMgPSBjbGllbnQucHJlcGFyZUNvbm5lY3QobG9nVXJsKQogICAgICAgIC5zZXRNZXRob2QoIkdFVCIpOwoKICAgIHBjLmV4ZWN1dGUobmV3IG9yZy5hc3luY2h0dHBjbGllbnQuQXN5bmNDb21wbGV0aW9uSGFuZGxlcih7CiAgICAgICAgb25Db21wbGV0ZWQ6IGZ1bmN0aW9uKHJlc3BvbnNlKSB7CiAgICAgICAgICAgIGxvZygicmVzcG5zZSA6ICIgKyByZXNwb25zZSApOwogICAgICAgIH0KICAgIH0pKTsKCiAgICBsb2coICJpbnZva2VkIGxhbWJkYSBjbGVhbi4uLiIpOwogICAgcmV0dXJuIGdldExvZygpOwp9Cg==",
             code_type: "code",
             cpus: 0.1,
             env: {
