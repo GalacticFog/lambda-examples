@@ -1,6 +1,6 @@
 function promote(args, ctx) {
-    load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/1.2.0/js_lambda/gestalt-sdk.js');
-    log("***** begin promote ************")
+    load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/1.3.0/js_lambda/gestalt-sdk.js');
+    log("***** begin promote ************");
 
     args = JSON.parse( args );
     ctx  = JSON.parse( ctx );
@@ -37,9 +37,9 @@ function promote(args, ctx) {
         log("ERROR: error creating container: response code " + err);
         return getLog();
     }
-    log("Container successfully migrated.")
+    log("Container successfully migrated.");
 
-    log("***** end promote **************")
+    log("***** end promote **************");
     return "Container migrated.";
 }
 

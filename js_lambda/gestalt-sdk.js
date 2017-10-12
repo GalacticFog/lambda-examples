@@ -298,7 +298,7 @@ function create_workspace(parent_org, name, description, async, f) {
 }
 
 /*
- * workspaces
+ * lambdas
  */
 
 function create_lambda(parent_org, parent_env, lambda_payload) {
@@ -332,9 +332,32 @@ function patch_container(parent_org, parent_env, container, patch, async) {
     return _PATCH("/" + fqon(parent_org) + "/environments/" + parent_env.id + "/containers/" + container.id, patch, async);
 }
 
+function update_container(parent_org, container, async) {
+    log("Updating container " + disp(container));
+    return _PUT("/" + fqon(parent_org) + "/containers/" + container.id, container, async);
+}
+
+/*
+ * apis
+ */
+
+function create_api(parent_org, parent_env, payload, async) {
+    log("Creating api " + payload.name + " in " + fqon(parent_org) + "/environments/" + parent_env.id);
+    return _POST("/" + fqon(parent_org) + "/environments/" + parent_env.id + "/apis", payload, async);
+}
+
+function find_api(parent_org, api_id, async) {
+    return _GET("/" + fqon(parent_org) + "/apis/" + api_id, async);
+}
+
 /*
  * apiendpoints
  */
+
+function create_apiendpoint(parent_org, parent_api, payload, async) {
+    log("Creating apiendpoint " + payload.name + " in " + fqon(parent_org) + "/apis/" + parent_api.id);
+    return _POST("/" + fqon(parent_org) + "/apis/" + parent_api.id + "/apiendpoints", payload, async);
+}
 
 function list_container_apiendpoints(org, container) {
     var endpoint = "/" + fqon(org) + "/containers/" + container.id + "/apiendpoints?expand=true";
@@ -346,6 +369,11 @@ function list_lambda_apiendpoints(org, lambda) {
     return _GET(endpoint);
 }
 
+function delete_endpoint(parent_org, endpoint, async) {
+    log("Deleting endpoint " + disp(endpoint) + " from " + fqon(parent_org));
+    return _DELETE("/" + fqon(parent_org) + "/apiendpoints/" + endpoint.id, async);
+}
+
 function update_endpoint_target(org, endpoint, new_target) {
     var patch = [{
         op: "replace",
@@ -355,6 +383,59 @@ function update_endpoint_target(org, endpoint, new_target) {
     log(JSON.stringify(patch));
     var url = "/" + fqon(org) + "/apiendpoints/" + endpoint.id;
     return _PATCH(url, patch);
+}
+
+function find_endoint_by_name(parent_org, parent_api, name) {
+    var endpoint = "/" + fqon(parent_org) + "/apis/" + parent_api.id + "/apiendpoints?expand=true";
+    var eps = _GET(endpoint);
+    for each (ep in eps) if (ep.name == name) return ep;
+    return null;
+}
+
+/*
+ * policy
+ */
+
+function create_policy(base_org, environment, name, description) {
+    log("creating new policy in " + environment.name);
+    return _POST("/" + fqon(base_org) + "/environments/" + environment.id + "/policies", {
+        name: name,
+        description: description ? description : "",
+        properties: {}
+    });
+}
+
+function create_event_rule(base_org, policy, name, description, lambdaId, actions) {
+    log("creating new event rule in " + policy.name);
+    return _POST("/" + fqon(base_org) + "/policies/" + policy.id + "/rules", {
+        name: name,
+        description: description ? description : "",
+        properties: {
+            parent: {},
+            lambda: lambdaId,
+            actions: actions
+        },
+        resource_type: "Gestalt::Resource::Rule::Event"
+    });
+}
+
+function create_limit_rule(base_org, policy, name, description, actions, property, operator, value) {
+    log("creating new limit rule in " + policy.name);
+    return _POST("/" + fqon(base_org) + "/policies/" + policy.id + "/rules",{
+        name: name,
+        description: description ? description : "",
+        properties: {
+            parent: {},
+            strict: false,
+            actions: actions,
+            eval_logic: {
+                property: property,
+                operator: operator,
+                value: value
+            }
+        },
+        resource_type: "Gestalt::Resource::Rule::Limit"
+    });
 }
 
 /*

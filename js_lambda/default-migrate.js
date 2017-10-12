@@ -1,6 +1,6 @@
 function migrate(args, ctx) {
 
-    load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/1.2.0/js_lambda/gestalt-sdk.js');
+    load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/1.3.0/js_lambda/gestalt-sdk.js');
 
     args = JSON.parse( args );
     ctx  = JSON.parse( ctx );
