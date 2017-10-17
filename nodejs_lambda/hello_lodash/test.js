@@ -1,5 +1,5 @@
 var exports = module.exports = {};
-exports.lodash = function(event, context) {
+exports.lodash = function(event, context, callback) {
  
   var _ = require('lodash');
   var junkyArray = [ 1, 0, '', 4, 2, false, 8, null ];
@@ -7,5 +7,5 @@ exports.lodash = function(event, context) {
   var betterArray = _.compact( junkyArray );
   returnString += "here's a cleaner array : " + betterArray + "\n";
 
-	return returnString;
+	callback( null, returnString );
 };

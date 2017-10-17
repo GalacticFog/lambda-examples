@@ -1,5 +1,5 @@
 var exports = module.exports = {};
-exports.aws = function(event, context) {
+exports.aws = function(event, context, callback) {
 
   var creds = {};
   if( event ) {
@@ -38,6 +38,4 @@ exports.aws = function(event, context) {
         });
         }
   });
- 
-	return "thing";
 };

@@ -1,5 +1,5 @@
 var exports = module.exports = {};
-exports.hello = function(event, context) {
+exports.hello = function(event, context, callback) {
  
   var thing = JSON.parse(context);
 
@@ -32,14 +32,14 @@ exports.hello = function(event, context) {
   var betterArray = _.compact( junkyArray );
   console.log( "here's a cleaner array : " + betterArray );
 
-	return "hello world.";
+	callback( null, "hello world." );
 };
 
-exports.goodbye = function goodbye(event, context) {
+exports.goodbye = function goodbye(event, context, callback) {
 
   console.log( "goodbye world" );
   _privateFunction( event, context );
-  return "goodbye world.";
+  callback( null, "goodbye world." );
 }
 
 function _privateFunction( event, context) {
