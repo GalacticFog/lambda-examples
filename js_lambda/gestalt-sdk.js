@@ -188,7 +188,7 @@ function create_user(parent_org, account_payload) {
 function find_user(parent_org, username) {
     log("Searching for user " + fqon(parent_org) + "/" + username);
     var users = _GET("/" + fqon(parent_org) + "/users/search?username=" + username);
-    for each (user in users) if (ep.name == username) return user;
+    for each (user in users) if (user.name == username) return user;
     return null;
 }
 
