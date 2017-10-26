@@ -187,9 +187,9 @@ function create_user(parent_org, account_payload) {
 
 function find_user(parent_org, username) {
     log("Searching for user " + fqon(parent_org) + "/" + username);
-    var users = _GET("/" + fqon(parent_org) + "/users/search?name=" + username);
-    if (users.length == 0) return null;
-    return users[0];
+    var users = _GET("/" + fqon(parent_org) + "/users/search?username=" + username);
+    for each (user in users) if (ep.name == username) return user;
+    return null;
 }
 
 function delete_user(parent_org, user) {
@@ -208,8 +208,8 @@ function create_group(parent_org, name, desc) {
 function find_group(parent_org, groupname) {
     log("Searching for group " + fqon(parent_org) + "/" + groupname);
     var groups = _GET("/" + fqon(parent_org) + "/groups/search?name=" + groupname);
-    if (groups.length == 0) return null;
-    return groups[0];
+    for each (group in groups) if (ep.name == groupname) return group;
+    return null;
 }
 
 function delete_group(parent_org, group) {
