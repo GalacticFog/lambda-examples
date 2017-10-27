@@ -2,7 +2,7 @@ function promote(args, ctx) {
     load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/1.4/js_lambda/gestalt-sdk.js');
     log("***** begin promote ************");
 
-    args = JSON.parse( args );
+    args = JSON.parse( args ).data;
     ctx  = JSON.parse( ctx );
 
     META = get_meta(args, ctx.creds);
