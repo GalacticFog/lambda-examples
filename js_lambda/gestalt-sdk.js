@@ -208,7 +208,7 @@ function create_group(parent_org, name, desc) {
 function find_group(parent_org, groupname) {
     log("Searching for group " + fqon(parent_org) + "/" + groupname);
     var groups = _GET("/" + fqon(parent_org) + "/groups/search?name=" + groupname);
-    for each (group in groups) if (ep.name == groupname) return group;
+    for each (group in groups) if (group.name == groupname) return group;
     return null;
 }
 
