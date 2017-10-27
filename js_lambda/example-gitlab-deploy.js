@@ -1,5 +1,5 @@
 function deploy(args, ctx) {
-    load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/1.3.0/js_lambda/gestalt-sdk.js');
+    load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/1.4/js_lambda/gestalt-sdk.js');
     log("***** begin documentation review deploy ************\n");
 
     ctx  = JSON.parse( ctx );
@@ -104,7 +104,7 @@ function deploy(args, ctx) {
     } else {
         log("ApiEndpoint already existed, will leave it intact.");
     }
-    var new_url = "https://gtw1.demo7.galacticfog.com/" + tgt_api.name + apiendpoint.properties.resource
+    var new_url = "https://gtw1.demo6.galacticfog.com/" + tgt_api.name + apiendpoint.properties.resource
     log("Created api-endpoint for container with id " + apiendpoint.id + " at " + new_url);
 
     log("Searching for associated GitLab Environment");
@@ -123,7 +123,7 @@ function deploy(args, ctx) {
 }
 
 function stop(args, ctx) {
-    load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/1.3.0/js_lambda/gestalt-sdk.js');
+    load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/1.4/js_lambda/gestalt-sdk.js');
     log("***** begin documentation review stop ************\n");
 
     ctx  = JSON.parse( ctx );
@@ -167,7 +167,7 @@ function stop(args, ctx) {
 
 function find_gitlab_environment(base_url, token, environment_name) {
     log("search for " + environment_name);
-    var url = base_url + "/environments";
+    var url = base_url + "/environments?per_page=1000";
     var pc = client.prepareConnect(url)
         .setMethod("GET")
         .addHeader("PRIVATE-TOKEN", token);
@@ -196,3 +196,4 @@ function patch_replace(prop_path, value) {
         value: value
     }
 }
+

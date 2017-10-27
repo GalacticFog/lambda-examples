@@ -1,8 +1,8 @@
 function promote(args, ctx) {
-    load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/1.3.0/js_lambda/gestalt-sdk.js');
+    load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/1.4/js_lambda/gestalt-sdk.js');
     log("***** begin promote ************");
 
-    args = JSON.parse( args );
+    args = JSON.parse( args ).data;
     ctx  = JSON.parse( ctx );
 
     META = get_meta(args, ctx.creds);
@@ -47,12 +47,12 @@ function promote(args, ctx) {
     if ( prod_env ) {
         update_gitlab_environment(gitlab_url, gitlab_token, prod_env, {
             name: "production",
-            external_url: "https://gtw1.demo7.galacticfog.com/equity-docs/"
+            external_url: "https://gtw1.demo6.galacticfog.com/equity-docs/"
         });
     } else {
         create_gitlab_environment(gitlab_url, gitlab_token, {
             name: "production",
-            external_url: "https://gtw1.demo7.galacticfog.com/equity-docs/"
+            external_url: "https://gtw1.demo6.galacticfog.com/equity-docs/"
         });
     }
 
