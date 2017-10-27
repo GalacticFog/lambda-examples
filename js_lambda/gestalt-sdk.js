@@ -54,6 +54,8 @@ function get_env(key,def) {
 }
 
 function get_meta(args, creds) {
+    log(creds, LoggingLevels.DEBUG);
+    log(args, LoggingLevels.DEBUG);
     if (args && args.meta_url) {
         var meta_url = args.meta_url;
     } else {
