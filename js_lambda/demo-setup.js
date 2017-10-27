@@ -1,6 +1,6 @@
 function run(/* arguments, credentials */) {
 
-    load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/1.3.0/js_lambda/gestalt-sdk.js');
+    load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/1.4/js_lambda/gestalt-sdk.js');
 
     META = get_meta();
     log("found meta: " + META.url, LoggingLevels.DEBUG);
@@ -93,7 +93,7 @@ function run(/* arguments, credentials */) {
                 Accept: "text/plain"
             },
             memory: 512,
-            package_url: "https://raw.githubusercontent.com/GalacticFog/lambda-examples/1.3.0/js_lambda/default-migrate.js",
+            package_url: "https://raw.githubusercontent.com/GalacticFog/lambda-examples/1.4/js_lambda/default-migrate.js",
             periodic_info: {
                 payload: {}
             },
@@ -102,7 +102,7 @@ function run(/* arguments, credentials */) {
                 locations: []
             },
             public: true,
-            runtime: "nodejs",
+            runtime: "nashorn",
             timeout: 120
         }
     });
