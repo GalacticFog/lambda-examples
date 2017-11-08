@@ -20,8 +20,8 @@ else {
 
 var securityHost = process.env.SECURITY_HOST;
 var securityPort = process.env.SECURITY_PORT;
-var username = process.env.USERNAME;
-var password = process.env.PASSWORD;
+var username = process.env.SECURITY_USERNAME;
+var password = process.env.SECURITY_PASSPHRASE;
 
 console.log( "protocol : " + protocol );
 console.log( "host : " + securityHost );
@@ -53,7 +53,7 @@ var req = http.request(options, function(res) {
     res.setEncoding('utf8');
     res.on('data', function (chunk) {
         console.log("body: " + chunk);
-        callback( chunk );
+        callback( null, chunk );
     });
 }).on('error', function(e) {
   console.log("Got error: " + e.message);
