@@ -243,6 +243,16 @@ function find_provider(parent_org, provider_id, async) {
     return _GET("/" + fqon(parent_org) + "/providers/" + provider_id, async);
 }
 
+function redeploy_provider(parent_org, provider, async) {
+    log("Redeploying provider " + disp(provider));
+    return _POST("/" + fqon(parent_org) + "/providers/" + provider.id + "/redeploy", null, async);
+}
+
+function patch_provider(parent_org, provider, patch, async) {
+    log("Patching provider " + disp(provider));
+    return _PATCH("/" + fqon(parent_org) + "/providers/" + provider.id, patch, async);
+}
+
 /*
  * orgs
  */
