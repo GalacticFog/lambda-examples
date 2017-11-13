@@ -456,7 +456,7 @@ function _handleResponse(response) {
     } else if (code == 204) {
         return null;
     }
-    if (response.getContentType().startsWith("application/json")) return JSON.parse(body);
+    if (response.getContentType() && response.getContentType().startsWith("application/json")) return JSON.parse(body);
     return body;
 }
 
