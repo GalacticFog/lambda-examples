@@ -17,7 +17,7 @@ Body format
 `{ "data": { "payload": "hello terra!" } }`
 
 ## Local Execution
-localrd or export
+localrc or export
 
 `export SLACK_API_BASEPATH=https://hooks.slack.com`
 `export SLACK_PATH=services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX`
