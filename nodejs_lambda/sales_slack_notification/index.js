@@ -4,7 +4,6 @@ exports.run = function (event, context, callback) {
   const axios = require("axios");
   const host = process.env.SLACK_API_BASEPATH;
   const path = process.env.SLACK_PATH;
-
   const slackAPI = axios.create({
     baseURL: host,
     headers: { 'Content-Type': 'application/json' }
@@ -15,7 +14,6 @@ exports.run = function (event, context, callback) {
       const eventData = JSON.parse(event);
       const message = eventData && eventData.data.payload || 'a payload was not provided to the message';
       const body = { text: message };
-
       const response = await slackAPI.post(path, body);
       callback(null, 'SUCCESS');
     } catch (err) {
@@ -24,5 +22,4 @@ exports.run = function (event, context, callback) {
   }
   
   postMessage(path);
-
 };
