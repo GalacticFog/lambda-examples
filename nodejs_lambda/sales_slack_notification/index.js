@@ -10,7 +10,7 @@ exports.run = function (event, context, callback) {
     headers: { 'Content-Type': 'application/json' }
   });
 
-  async function postMessage(path) {
+  const postMessage = async (path) => {
     try {
       const eventData = JSON.parse(event);
       const message = eventData && eventData.data.payload || 'a payload was not provided to the message';
