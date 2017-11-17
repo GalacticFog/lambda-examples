@@ -53,7 +53,7 @@ function run(args, ctx) {
         if (newsvc) {
             patch_provider(root_org, p, [
                 patch_replace("/description", desc),
-                patch_replace("/properties/services/1", newsvc)
+                patch_replace("/properties/services", [newsvc])
             ]);
             log("Provider updated.");
 
