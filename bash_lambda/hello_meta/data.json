@@ -1,0 +1,8 @@
+{
+    "meta_host" : "https://meta.test.galacticfog.com",
+    "meta_port" : 443,
+    "security_host" : "https://security.test.galacticfog.com",
+    "security_port" : 443,
+    "username" : "gftest",
+    "password" : "<password>"
+}
