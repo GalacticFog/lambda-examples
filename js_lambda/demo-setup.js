@@ -2,7 +2,7 @@ function run(/* arguments, credentials */) {
 
     load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/1.4/js_lambda/gestalt-sdk.js');
 
-    META = get_meta();
+    META = get_meta(null,null);
     log("found meta: " + META.url, LoggingLevels.DEBUG);
 
     var root_org = find_org("root");
@@ -68,14 +68,14 @@ function run(/* arguments, credentials */) {
     var trading_prod = create_environment(equityDiv, trading_wrk, "prod", "Production", EnvironmentTypes.PRODUCTION);
     var trading_qa   = create_environment(equityDiv, trading_wrk, "qa",   "QA",         EnvironmentTypes.TEST);
 
-    add_entitlements(demo_org,  demo_org,     "org.view",         trading_grp, DO_ASYNC);
-    add_entitlements(equityDiv, trading_wrk,  "workspace.view",   trading_grp, DO_ASYNC);
-    add_entitlements(equityDiv, trading_wrk,  "environment.view", trading_grp, DO_ASYNC);
-    var ENV_ENTS = ["container.create", "container.view", "container.update", "container.delete", "container.scale", "container.migrate",
-                    "lambda.create", "lambda.view", "lambda.update", "lambda.delete"];
-    for each (env in [trading_dev, trading_prod, trading_qa]) {
-        add_entitlements(equityDiv, env, ENV_ENTS, trading_grp, DO_ASYNC);
-    }
+    // add_entitlements(demo_org,  demo_org,     "org.view",         trading_grp, DO_ASYNC);
+    // add_entitlements(equityDiv, trading_wrk,  "workspace.view",   trading_grp, DO_ASYNC);
+    // add_entitlements(equityDiv, trading_wrk,  "environment.view", trading_grp, DO_ASYNC);
+    // var ENV_ENTS = ["container.create", "container.view", "container.update", "container.delete", "container.scale", "container.migrate",
+    //                 "lambda.create", "lambda.view", "lambda.update", "lambda.delete"];
+    // for each (env in [trading_dev, trading_prod, trading_qa]) {
+    //     add_entitlements(equityDiv, env, ENV_ENTS, trading_grp, DO_ASYNC);
+    // }
 
     log("")
     var global_work = create_workspace(demo_org, "global", "global workspace");
