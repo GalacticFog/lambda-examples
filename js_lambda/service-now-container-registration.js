@@ -24,7 +24,7 @@ function run(args, ctx) {
         });
     } else if (eventName === "container.delete.post") {
         delete_servicenow_container(sn_url, sn_token, cur_app.name);
-    } else if (eventName === "container.update.post") {
+    } else {
         update_servicenow_container(sn_url, sn_token, cur_app.name, {
             u_num_instances: cur_app.properties.num_instances,
             u_cpus: cur_app.properties.cpus,

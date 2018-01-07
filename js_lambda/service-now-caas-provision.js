@@ -25,7 +25,7 @@ function run(args, ctx) {
     create_event_rule(equity_org, policy,
         "sn-container_crud", "Track container CRUD events in ServiceNow",
         crud_lambda_id,
-        [ "container.delete.post", "container.update.post", "container.create.post" ]
+        [ "container.create.post", "container.delete.post", "container.update.post", "container.scale.post" ]
     );
     create_limit_rule(equity_org, policy,
         "cpu-limit", "Limit CPU to 0.1", [ "container.create", "container.update" ],
@@ -36,7 +36,7 @@ function run(args, ctx) {
         "container.properties.memory", "<=", 256
     );
     create_limit_rule(equity_org, policy,
-        "inst-limit", "Limit number of instances to 2", [ "container.create", "container.update" ],
+        "inst-limit", "Limit number of instances to 2", [ "container.create", "container.update", "container.scale" ],
         "container.properties.num_instances", "<=", 2
     );
 
