@@ -2,7 +2,7 @@ function run(args, ctx) {
     load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/1.4/js_lambda/gestalt-sdk.js');
     log("***** begin servicenow caas provisioning ************\n");
 
-    args = JSON.parse( args ).data;
+    args = JSON.parse( args );
     ctx  = JSON.parse( ctx );
 
     var wrk_name = args.workspace_name;
