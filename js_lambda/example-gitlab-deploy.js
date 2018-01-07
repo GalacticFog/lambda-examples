@@ -104,7 +104,7 @@ function deploy(args, ctx) {
     } else {
         log("ApiEndpoint already existed, will leave it intact.");
     }
-    var new_url = "https://gtw1.demo6.galacticfog.com/" + tgt_api.name + apiendpoint.properties.resource
+    var new_url = "https://gtw1.demo.galacticfog.com/" + tgt_api.name + apiendpoint.properties.resource
     log("Created api-endpoint for container with id " + apiendpoint.id + " at " + new_url);
 
     log("Searching for associated GitLab Environment");
