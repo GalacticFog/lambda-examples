@@ -42,7 +42,7 @@ function run(args, ctx) {
 
     log("***** done servicenow caas provisioning ************\n");
     return JSON.stringify({
-        url: "https://demo.galacticfog.com/galactic-capital/hierarchy/f810ae7a-803b-49a0-9a3b-80b97a36464f/environments/" + environment.id
+        url: "https://demo.galacticfog.com/galactic-capital.equity.devs/hierarchy/" + workspace.id + "/environments/" + environment.id
     });
 }
 
