@@ -175,7 +175,7 @@ function create_migrate_policy(base_org, environment, lambda) {
         description: "execute migrate lambda on container.migrate.pre",
         resource_type: "Gestalt::Resource::Rule::Event",
         properties: {
-            match_actions: [ "container.migrate.pre" ],
+            actions: [ "container.migrate.pre" ],
             eval_logic: {},
             lambda: lambda.id
         }
@@ -425,7 +425,7 @@ function create_event_rule(base_org, policy, name, description, lambdaId, action
         properties: {
             parent: {},
             lambda: lambdaId,
-            match_actions: actions
+            actions: actions
         },
         resource_type: "Gestalt::Resource::Rule::Event"
     });
@@ -439,7 +439,7 @@ function create_limit_rule(base_org, policy, name, description, actions, propert
         properties: {
             parent: {},
             strict: false,
-            match_actions: actions,
+            actions: actions,
             eval_logic: {
                 property: property,
                 operator: operator,
