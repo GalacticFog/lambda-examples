@@ -73,7 +73,7 @@ function run(payload, ctx) {
     try {
         slack_path = get_env("SLACK_PATH");
         slack_url = "https://hooks.slack.com" + slack_path;
-        _SLACK(slack_url, "updated provider in test with _" + new_image + "_");
+        _SLACK(slack_url, "updated providers of type *" + provider_type + "* in test with _" + new_image + "_");
         log("posted message to slack");
     } catch (err) {
         log("Caught error posting message to slack");
