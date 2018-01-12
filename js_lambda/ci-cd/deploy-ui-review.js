@@ -6,14 +6,14 @@
  * TARGET_PROVIDER - CaaS provider for creating containers
  */
 
-function deploy(args, ctx) {
+function deploy(payload, ctx) {
     load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/1.4/js_lambda/gestalt-sdk.js');
     log("***** begin ui review app deploy ************\n");
 
-    args = JSON.parse( args );
+    payload = JSON.parse( payload );
     ctx  = JSON.parse( ctx );
 
-    META = get_meta(null, ctx.creds);
+    META = get_meta(null, null); // don't use caller credentials, they may not be valid against the target meta instance
     log("[init] found meta: " + META.url);
 
     var tgt_org = find_org(get_env("TARGET_ORG"));
@@ -36,11 +36,20 @@ function deploy(args, ctx) {
 
     var gitlab_token = get_env("GITLAB_TOKEN");
 
-    var env_slug   = args.gitlab_env_slug;
-    var git_ref    = args.git_ref;
-    var git_sha    = args.git_sha;
-    var git_author = args.git_author;
-    var image      = args.image;
+    var env_slug   = payload.gitlab_env_slug;
+    var git_ref    = payload.git_ref;
+    var git_sha    = payload.git_sha;
+    var git_author = payload.git_author;
+    var image      = payload.image;
+
+    if (!env_slug) {
+        log("ERROR: missing gitlab environment slug argument 'gitlab_env_slug'");
+        return getLog();
+    }
+    if (!image) {
+        log("ERROR: missing image argument 'image'");
+        return getLog();
+    }
 
     var date = (new Date()).toString();
     var desc =
@@ -50,9 +59,10 @@ function deploy(args, ctx) {
         "Git ref: " + git_ref + "\n" +
         "SHA: " + git_sha + "\n";
 
-    log("Will deploy image " + image + " to provider " + tgt_provider.name);
-
     var vhost = "ui-review-" + env_slug + ".test.galacticfog.com";
+
+    log("Will deploy image " + image + " to provider " + tgt_provider.name + ' at url: https://' + vhost);
+
     var app;
     try {
         var payload = {
@@ -76,12 +86,13 @@ function deploy(args, ctx) {
                     container_port: 80
                 }],
                 env: {
-                    META_API_URL: "https://meta.test.galacticfog.com",
-                    SEC_API_URL: "https://security.test.galacticfog.com"
+                    META_API_URL: get_env("LOCAL_META_URL","https://meta.test.galacticfog.com"),
+                    SEC_API_URL: get_env("LOCAL_SEC_URL","https://security.test.galacticfog.com")
                 },
                 labels: {
                     HAPROXY_GROUP: "external",
                     HAPROXY_0_VHOST: vhost,
+                    HAPROXY_0_REDIRECT_TO_HTTPS: "true",
                     DEPLOYED_AT: date,
                     GIT_AUTHOR: git_author,
                     GIT_SHA: git_sha,
@@ -117,6 +128,16 @@ function deploy(args, ctx) {
         });
     } else {
         log("WARNING: Could not locate GitLab environment in order to update external_url");
+    }
+
+    try {
+        slack_path = get_env("SLACK_PATH");
+        slack_url = "https://hooks.slack.com" + slack_path;
+        _SLACK(slack_url, "_" + image + "_ deployed to review app https://" + vhost);
+        log("posted message to slack");
+    } catch (err) {
+        log("Caught error posting message to slack");
+        log(err);
     }
 
     log("\n***** done with UI review app deploy ************");
@@ -190,4 +211,31 @@ function find_gitlab_environment(token, env_slug) {
     var envs = _handleResponse(pc.execute().get());
     for each (e in envs) if (e.slug == env_slug) return e;
     return null;
+}
+
+function _SLACK(url, message) {
+    return _REST("POST", url, {
+        text: message,
+        mrkdwn: true
+    });
+}
+
+function _REST(method, url, payload, async, fResponse) {
+    var pc = client.prepareConnect(url)
+        .setMethod(method);
+    log(method + " " + url, LoggingLevels.DEBUG);
+    if (payload) {
+        pc = pc.setBody(JSON.stringify(payload)).addHeader("Content-Type", "application/json")
+    }
+    var _async = async ? async : false; // just being explicit that the default here is 'false'
+    if (_async) {
+        if (!fResponse) fResponse = new CompletableFuture();
+        pc.execute(new org.asynchttpclient.AsyncCompletionHandler({
+            onCompleted: function(response) {
+                fResponse.complete(_handleResponse(response));
+            }
+        }));
+        return fResponse;
+    }
+    return _handleResponse(pc.execute().get());
 }
