@@ -1,11 +1,11 @@
-function run(args, ctx) {
+function run(payload, ctx) {
     load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/1.4/js_lambda/gestalt-sdk.js');
     log("***** begin provider update/redeploy ************\n");
 
-    args = JSON.parse( args );
+    payload = JSON.parse( payload );
     ctx  = JSON.parse( ctx );
 
-    META = get_meta(null, ctx.creds);
+    META = get_meta(null, null); // do not use caller credentials, may be targeting a different meta
     log("[init] found meta: " + META.url);
 
     var root_org = find_org("root");
@@ -14,21 +14,21 @@ function run(args, ctx) {
         return getLog();
     }
 
-    var new_image = args.image;
+    var new_image = payload.image;
     if ( !new_image ) {
         log("ERROR: payload was missing 'image'");
         return getLog();
     }
-    var provider_type = args.provider_type;
+    var provider_type = payload.provider_type;
     if ( !provider_type ) {
         log("ERROR: payload was missing 'provider_type'");
         return getLog();
     }
 
-    var git_ref    = args.git_ref;
-    var git_sha    = args.git_sha;
-    var git_author = args.git_author;
-    var redeploy   = args.redeploy;
+    var git_ref    = payload.git_ref;
+    var git_sha    = payload.git_sha;
+    var git_author = payload.git_author;
+    var redeploy   = payload.redeploy;
 
     var desc =
         "Last updated in CI: \n" +
@@ -70,6 +70,16 @@ function run(args, ctx) {
         }
     }
 
+    try {
+        slack_path = get_env("SLACK_PATH");
+        slack_url = "https://hooks.slack.com" + slack_path;
+        _SLACK(slack_url, "updated provider in test with _" + new_image + "_");
+        log("posted message to slack");
+    } catch (err) {
+        log("Caught error posting message to slack");
+        log(err);
+    }
+
     log("\n***** done with provider update/redeploy ************\n");
     return getLog();
 }
@@ -82,3 +92,29 @@ function patch_replace(path, value) {
     }
 }
 
+function _SLACK(url, message) {
+    return _REST("POST", url, {
+        text: message,
+        mrkdwn: true
+    });
+}
+
+function _REST(method, url, payload, async, fResponse) {
+    var pc = client.prepareConnect(url)
+        .setMethod(method);
+    log(method + " " + url, LoggingLevels.DEBUG);
+    if (payload) {
+        pc = pc.setBody(JSON.stringify(payload)).addHeader("Content-Type", "application/json")
+    }
+    var _async = async ? async : false; // just being explicit that the default here is 'false'
+    if (_async) {
+        if (!fResponse) fResponse = new CompletableFuture();
+        pc.execute(new org.asynchttpclient.AsyncCompletionHandler({
+            onCompleted: function(response) {
+                fResponse.complete(_handleResponse(response));
+            }
+        }));
+        return fResponse;
+    }
+    return _handleResponse(pc.execute().get());
+}
