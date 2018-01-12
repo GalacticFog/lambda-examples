@@ -1,11 +1,3 @@
-/** Expected variables:
- * META_URL        - url for meta
- * GITLAB_TOKEN    - token for authenticating with gitlab
- * TARGET_ENV      - UUID of environment where containers are created
- * TARGET_ORG      - FQON of org parent for TARGET_ENV
- * TARGET_PROVIDER - CaaS provider for creating containers
- */
-
 function deploy(payload, ctx) {
     load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/1.4/js_lambda/gestalt-sdk.js');
     log("***** begin ui review app deploy ************\n");
@@ -133,7 +125,7 @@ function deploy(payload, ctx) {
     try {
         slack_path = get_env("SLACK_PATH");
         slack_url = "https://hooks.slack.com" + slack_path;
-        _SLACK(slack_url, "_" + image + "_ deployed to review app https://" + vhost);
+        _SLACK(slack_url, "_" + image + "_ deployed to review app\nhttps://" + vhost);
         log("posted message to slack");
     } catch (err) {
         log("Caught error posting message to slack");

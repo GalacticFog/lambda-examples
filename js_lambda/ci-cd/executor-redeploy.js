@@ -5,7 +5,7 @@ function run(args, ctx) {
     args = JSON.parse( args );
     ctx  = JSON.parse( ctx );
 
-    META = get_meta(null, ctx.creds);
+    META = get_meta(null, null); // not user caller credentials, but targeted meta
     log("[init] found meta: " + META.url);
 
     var root_org = find_org("root");
@@ -73,6 +73,16 @@ function run(args, ctx) {
         log("Redeploy downstream not requested, will not redeploy downstream.");
     }
 
+    try {
+        slack_path = get_env("SLACK_PATH");
+        slack_url = "https://hooks.slack.com" + slack_path;
+        _SLACK(slack_url, "updated executors of type *" + provider_type + "* in test with _" + new_image + "_");
+        log("posted message to slack");
+    } catch (err) {
+        log("Caught error posting message to slack");
+        log(err);
+    }
+
     log("\n***** done with provider update/redeploy ************\n");
     return getLog();
 }
@@ -96,3 +106,29 @@ function is_linked(upstream, maybe_downstream) {
     return false;
 }
 
+function _SLACK(url, message) {
+    return _REST("POST", url, {
+        text: message,
+        mrkdwn: true
+    });
+}
+
+function _REST(method, url, payload, async, fResponse) {
+    var pc = client.prepareConnect(url)
+        .setMethod(method);
+    log(method + " " + url, LoggingLevels.DEBUG);
+    if (payload) {
+        pc = pc.setBody(JSON.stringify(payload)).addHeader("Content-Type", "application/json")
+    }
+    var _async = async ? async : false; // just being explicit that the default here is 'false'
+    if (_async) {
+        if (!fResponse) fResponse = new CompletableFuture();
+        pc.execute(new org.asynchttpclient.AsyncCompletionHandler({
+            onCompleted: function(response) {
+                fResponse.complete(_handleResponse(response));
+            }
+        }));
+        return fResponse;
+    }
+    return _handleResponse(pc.execute().get());
+}
