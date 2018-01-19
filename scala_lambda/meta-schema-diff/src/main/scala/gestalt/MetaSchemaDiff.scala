@@ -10,6 +10,7 @@ import play.api.libs.ws.{WS, WSAuthScheme, WSClient, WSRequest}
 import play.api.libs.ws.ahc.AhcWSClient
 
 import scala.collection.immutable.Range
+import scala.collection.mutable
 import scala.util.{Failure, Success, Try}
 import scala.concurrent.Await
 import scala.concurrent.duration._
@@ -18,13 +19,17 @@ class MetaSchemaDiff {
 
   val logger = Logger(this.getClass)
 
-  val metaUrl = getEnv("META_URL")
-  val apiKey  = getEnv("API_KEY")
-  val apiSec  = getEnv("API_SECRET")
+  val baseMetaUrl = getEnv("META_URL")
+  val apiKey      = getEnv("API_KEY")
+  val apiSecret   = getEnv("API_SECRET")
   val targetFqon      = getEnv("TARGET_FQON")
   val targetWorkspace = getEnv("TARGET_WORKSPACE")
   val targetProvider  = getEnv("TARGET_PROVIDER")
   val securityDockerImage = getEnv("SECURITY_IMAGE", Some("galacticfog/gestalt-security:release-1.5.0"))
+  val testMetaUrl         = getEnv("TEST_META_URL", Some(baseMetaUrl))
+  val testMetaApiKey      = getEnv("TEST_API_KEY", Some(apiKey))
+  val testMetaApiSec      = getEnv("TEST_API_SECRET", Some(apiSecret))
+  val slackUrl            = getEnv("SLACK_URL")
 
   implicit val system = ActorSystem()
   implicit val materializer = ActorMaterializer()
@@ -32,7 +37,9 @@ class MetaSchemaDiff {
 
   def log(m: String) = logger.info(m)
 
-  private[this] implicit def baseMetaRequestBuilder(endpoint: String) = ws.url(metaUrl + "/" + endpoint.stripPrefix("/")).withAuth(apiKey, apiSec, WSAuthScheme.BASIC)
+  private[this] implicit def baseMetaRequestBuilder(endpoint: String) = ws.url(baseMetaUrl + "/" + endpoint.stripPrefix("/")).withAuth(apiKey, apiSecret, WSAuthScheme.BASIC)
+
+  private[this] def testMeta(endpoint: String) = ws.url(baseMetaUrl + "/" + endpoint.stripPrefix("/")).withAuth(apiKey, apiSecret, WSAuthScheme.BASIC)
 
   private[this] def rawRequestBuilder(url: String): WSRequest = ws.url(url)
 
@@ -53,78 +60,139 @@ class MetaSchemaDiff {
       )
     ))) flatMap {js => Try{(js \ "id").as[String]}}
 
-    val Success(testMeta) = for {
-      testEnvId <- testEnvIdTry
-      _ = log(s"created test environment ${testEnvId}")
-      aboutMeta <- REST("/about")
-      metaDockerImage <- Try {
-        (aboutMeta \ "docker_image").as[String]
-      }
-      // database
-      dbContainer <- {
-        log("creating postgres container")
-        REST(s"/$targetFqon/environments/$testEnvId/containers", "POST", Some(dbContainer))
-      }
-      dbContainerAddress <- Try {
-        (dbContainer \ "properties" \ "port_mappings" \ (0) \ "service_address" \ "host").as[String]
-      }
-      // security
-      securityContainer <- {
-        log("creating security container")
-        REST(s"/$targetFqon/environments/$testEnvId/containers", "POST", Some(securityContainer(dbContainerAddress)))
-      }
-      testSecurityAddress <- Try {
-        (securityContainer \ "properties" \ "port_mappings" \ (0) \ "service_address" \ "host").as[String]
-      }
-      _ <- {
-        Stream.range(1,60).map({i =>
-          Thread.sleep(1000)
-          log(s"Attempt $i to check security /init")
-          val ready = REST(s"http://$testSecurityAddress:9455/init")(rawRequestBuilder)
-          log(ready.toString)
-          ready.flatMap(js => Try{(js \ "initialized").as[Boolean]})
-        }).collectFirst({case s @ Success(isInit) => isInit}) match {
-          case Some(false) => Success("security is ready for /init")
-          case Some(true)  => Failure(new RuntimeException("security has somehow already been initialized"))
-          case None        => Failure(new RuntimeException("security is not ready to be initialized yet"))
-        }
-      }
-      initSecurity <- REST(s"http://$testSecurityAddress:9455/init", "POST", Some(Json.obj(
-        "username" -> "admin",
-        "password" -> "admin"
-      )))(rawRequestBuilder)
-      testApiKey <- Try { (initSecurity \(0) \ "apiKey").as[String] }
-      testApiSecret <- Try { (initSecurity \ (0) \ "apiSecret").as[String] }
-      _ = log(s"security credentials: $testApiKey:$testApiSecret")
-      // meta
-      metaContainer <- {
-        log("creating meta container")
-        REST(s"/$targetFqon/environments/$testEnvId/containers", "POST", Some(metaContainer(testSecurityAddress, dbContainerAddress, metaDockerImage)))
-      }
-      testMetaAddress <- Try{(metaContainer \ "properties" \ "port_mappings" \(0) \ "service_address" \ "host").as[String]}
-      testMetaUrl = s"http://$testMetaAddress:14374"
-      testMeta = (endpoint: String) => ws.url(testMetaUrl + "/" + endpoint.stripPrefix("/")).withAuth(testApiKey, testApiSecret, WSAuthScheme.BASIC)
-    } yield testMeta
+    val diff = Try {
 
-    val Success(_) = for {
-      ready <- {
-        Stream.range(1,60).map({i =>
-          Thread.sleep(1000)
-          log(s"Attempt $i to check meta /about")
-          val ready = REST("/about")(testMeta)
-          log(ready.toString)
-          ready.flatMap(js => Try{(js \ "status").as[String]})
-        }).collectFirst({case s @ Success(status) => status}) match {
-          case Some("OK") => Success("meta is ready for /bootstrap")
-          case Some(_)    => Failure(new RuntimeException("meta is up but not ready for /bootstrap"))
-          case None       => Failure(new RuntimeException("meta is apparently not up yet"))
+      val Success(goldMeta) = for {
+        testEnvId <- testEnvIdTry
+        _ = log(s"created test environment ${testEnvId}")
+        aboutMeta <- REST("/about")
+        metaDockerImage <- Try {
+          (aboutMeta \ "docker_image").as[String]
         }
+        //// Create containers first
+        // database
+        dbContainer <- {
+          log("creating postgres container")
+          REST(s"/$targetFqon/environments/$testEnvId/containers", "POST", Some(dbContainer))
+        }
+        dbContainerAddress <- Try {
+          (dbContainer \ "properties" \ "port_mappings" \ (0) \ "service_address" \ "host").as[String]
+        }
+        // security
+        securityContainer <- {
+          log("creating security container")
+          REST(s"/$targetFqon/environments/$testEnvId/containers", "POST", Some(securityContainer(dbContainerAddress)))
+        }
+        testSecurityAddress <- Try {
+          (securityContainer \ "properties" \ "port_mappings" \ (0) \ "service_address" \ "host").as[String]
+        }
+        // meta
+        metaContainer <- {
+          log("creating meta container")
+          REST(s"/$targetFqon/environments/$testEnvId/containers", "POST", Some(metaContainer(testSecurityAddress, dbContainerAddress, metaDockerImage)))
+        }
+        goldMetaAddress <- Try {
+          (metaContainer \ "properties" \ "port_mappings" \ (0) \ "service_address" \ "host").as[String]
+        }
+        //// init security
+        _ <- {
+          Stream.range(1, 60).map({ i =>
+            Thread.sleep(1000)
+            log(s"Attempt $i to check security /init")
+            val ready = REST(s"http://$testSecurityAddress:9455/init")(rawRequestBuilder)
+            log(ready.toString)
+            ready.flatMap(js => Try {
+              (js \ "initialized").as[Boolean]
+            })
+          }).collectFirst({ case s@Success(isInit) => isInit }) match {
+            case Some(false) => Success("security is ready for /init")
+            case Some(true) => Failure(new RuntimeException("security has somehow already been initialized"))
+            case None => Failure(new RuntimeException("security is not ready to be initialized yet"))
+          }
+        }
+        initSecurity <- REST(s"http://$testSecurityAddress:9455/init", "POST", Some(Json.obj(
+          "username" -> "admin",
+          "password" -> "admin"
+        )))(rawRequestBuilder)
+        testApiKey <- Try {
+          (initSecurity \ (0) \ "apiKey").as[String]
+        }
+        testApiSecret <- Try {
+          (initSecurity \ (0) \ "apiSecret").as[String]
+        }
+        _ = log(s"security credentials: $testApiKey:$testApiSecret")
+        //// bootstrap meta
+        goldMetaUrl = s"http://$goldMetaAddress:14374"
+        goldMeta = (endpoint: String) => ws.url(goldMetaUrl + "/" + endpoint.stripPrefix("/")).withAuth(testApiKey, testApiSecret, WSAuthScheme.BASIC)
+      } yield goldMeta
+
+      val Success(_) = for {
+        ready <- {
+          Stream.range(1, 60).map({ i =>
+            Thread.sleep(1000)
+            log(s"Attempt $i to check meta /about")
+            val ready = REST("/about")(goldMeta)
+            log(ready.toString)
+            ready.flatMap(js => Try {
+              (js \ "status").as[String]
+            })
+          }).collectFirst({ case s@Success(status) => status }) match {
+            case Some("OK") => Success("meta is ready for /bootstrap")
+            case Some(_) => Failure(new RuntimeException("meta is up but not ready for /bootstrap"))
+            case None => Failure(new RuntimeException("meta is apparently not up yet"))
+          }
+        }
+        _ = log(s"$ready")
+        _ = log("bootstrapping meta")
+        bootstrap <- REST("/bootstrap", "POST", None, timeout = 30)(goldMeta)
+        _ = log(bootstrap.toString)
+      } yield ()
+
+      val failures = mutable.MutableList[String]()
+
+      val testRTs = REST("/root/resourcetypes")(testMeta)
+        .flatMap(js => Try{js.as[Seq[ResourceLink]]})
+        .getOrElse(throw new RuntimeException("could not retrieve schema from test meta"))
+        .map(rt => (rt.id,rt.name)).toSet
+      val goldRTs = REST("/root/resourcetypes")(goldMeta)
+        .flatMap(js => Try{js.as[Seq[ResourceLink]]})
+        .getOrElse(throw new RuntimeException("could not retrieve schema from gold meta"))
+        .map(rt => (rt.id,rt.name)).toSet
+      val missing = goldRTs.diff(testRTs)
+      missing.foreach {
+        case (id,name) =>
+          val msg = s"missing ResourceType $name"
+          log(msg)
+          failures += msg
       }
-      _ = log(s"$ready")
-      _ = log("bootstrapping meta")
-      bootstrap <- REST("/bootstrap", "POST", None, timeout = 30)(testMeta)
-      _ = log(bootstrap.toString)
-    } yield ()
+
+      failures
+    }
+
+    val slackMsg = diff match {
+      case Success(failures) =>
+        Json.obj(
+          "username" -> "meta-schema-diff-lambda",
+          "attachments" -> Seq(Json.obj(
+            "color" -> (if (failures.isEmpty) "#00ff00" else "#ff0000"),
+            "pretext" -> s"Diff result against $testMetaUrl",
+            "text" -> (if (failures.isEmpty) "success :100:" else failures.mkString("\n"))
+          ))
+        )
+      case Failure(err) =>
+        Json.obj(
+          "username" -> "meta-schema-diff-lambda",
+          "attachments" -> Seq(Json.obj(
+            "color" -> "#ff0000",
+            "pretext" -> s"Error during lambda",
+            "text" -> err.toString
+          ))
+        )
+    }
+    REST(slackUrl, "POST", Some(slackMsg))(rawRequestBuilder) match {
+      case Success(_) => log("posted message to slack")
+      case Failure(err) => log(s"error posting message to slack:\n${err.toString}")
+    }
 
     log("cleaning up by deleting test environment")
     testEnvIdTry foreach {
@@ -251,5 +319,23 @@ class MetaSchemaDiff {
       )
     )
   )
+
+  case class ResourceLink( id: UUID, name: String )
+
+  case class LineageInfo( child_types: Seq[UUID], parent_types: Seq[UUID] )
+
+  case class ActionInfo( prefix: String, verbs: Seq[String] )
+
+  case class ResourceType( id: UUID,
+                           name: String,
+                           `abstract`: Option[Boolean],
+                           actions: Option[ActionInfo],
+                           lineage: Option[LineageInfo],
+                           property_defs: Seq[ResourceLink] )
+
+  implicit val resourceLinkFmt = Json.format[ResourceLink]
+  implicit val lineageInfoFmt = Json.format[LineageInfo]
+  implicit val actionInfoFmt = Json.format[ActionInfo]
+  implicit val resourceTypeFmt = Json.format[ResourceType]
 
 }
