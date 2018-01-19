@@ -5,11 +5,13 @@ import java.util.UUID
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import play.api.Logger
-import play.api.libs.json.{JsObject, JsValue, Json}
-import play.api.libs.ws.{WS, WSAuthScheme, WSClient, WSRequest}
+import play.api.libs.json._
+import play.api.libs.ws.{WSAuthScheme, WSClient, WSRequest}
 import play.api.libs.ws.ahc.AhcWSClient
+import play.api.libs.json._
+import play.api.libs.json.Reads._
+import play.api.libs.functional.syntax._
 
-import scala.collection.immutable.Range
 import scala.collection.mutable
 import scala.util.{Failure, Success, Try}
 import scala.concurrent.Await
@@ -44,6 +46,7 @@ class MetaSchemaDiff {
   private[this] def rawRequestBuilder(url: String): WSRequest = ws.url(url)
 
   def diff(payloadStr: String, ctxStr: String): String = {
+
     val payload = Try{Json.parse(payloadStr)} getOrElse Json.obj()
     log(s"parsed payload is: '${payload}'")
     val ctx = Json.parse(ctxStr)
@@ -60,15 +63,14 @@ class MetaSchemaDiff {
       )
     ))) flatMap {js => Try{(js \ "id").as[String]}}
 
+    val metaDockerImageTry = REST("/about").flatMap(j => Try{(j \ "docker_image").as[String]})
+
     val diff = Try {
 
       val Success(goldMeta) = for {
         testEnvId <- testEnvIdTry
+        metaDockerImage <- metaDockerImageTry
         _ = log(s"created test environment ${testEnvId}")
-        aboutMeta <- REST("/about")
-        metaDockerImage <- Try {
-          (aboutMeta \ "docker_image").as[String]
-        }
         //// Create containers first
         // database
         dbContainer <- {
@@ -166,6 +168,35 @@ class MetaSchemaDiff {
           failures += msg
       }
 
+      val deepCheck = goldRTs.intersect(testRTs).map(_._1)
+      log(s"resource types to check: ${deepCheck}")
+      val deepTestRTs = REST("/root/resourcetypes?expand=true")(testMeta)
+        .flatMap(j => Try{j.as[Seq[ResourceType]]})
+        .getOrElse[Seq[ResourceType]]({
+          failures += "could not parse resourcetypes?expand=true from test"
+          log("could not parse resourcetypes?expand=true from test")
+          Seq.empty
+        })
+        .map(rt => (rt.id,rt)).toMap
+      val deepGoldRTs = REST("/root/resourcetypes?expand=true")(goldMeta)
+        .flatMap(j => Try{j.as[Seq[ResourceType]]})
+        .getOrElse[Seq[ResourceType]]({
+          failures += "could not parse resourcetypes?expand=true from gold"
+          log("could not parse resourcetypes?expand=true from gold")
+          Seq.empty
+        })
+        .map(rt => (rt.id,rt)).toMap
+      deepCheck.foreach { id =>
+        log(s"checking resource type ${id}")
+        val deepTestRt = deepTestRTs(id)
+        val deepGoldRt = deepGoldRTs(id)
+        if ( deepTestRt.copy(property_defs = Seq.empty) != deepGoldRt.copy(property_defs = Seq.empty) ) {
+          val msg = s"Resource types ${deepTestRt.name} are not equal"
+          log(msg)
+          failures += msg
+        }
+      }
+
       failures
     }
 
@@ -173,11 +204,22 @@ class MetaSchemaDiff {
       case Success(failures) =>
         Json.obj(
           "username" -> "meta-schema-diff-lambda",
-          "attachments" -> Seq(Json.obj(
-            "color" -> (if (failures.isEmpty) "#00ff00" else "#ff0000"),
-            "pretext" -> s"Diff result against $testMetaUrl",
-            "text" -> (if (failures.isEmpty) "success :100:" else failures.mkString("\n"))
-          ))
+          "attachments" -> Seq(
+            Json.obj(
+              "fields" -> Seq(Json.obj(
+                "title" -> "Target",
+                "value" -> testMetaUrl
+              ), Json.obj(
+                "title" -> "Image",
+                "value" -> metaDockerImageTry.getOrElse[String]("error retrieving meta info")
+              ))
+            ),
+            Json.obj(
+              "color" -> (if (failures.isEmpty) "#00ff00" else "#ff0000"),
+              "pretext" -> s"Result:",
+              "text" -> (if (failures.isEmpty) "success :100:" else failures.mkString("\n"))
+            )
+          )
         )
       case Failure(err) =>
         Json.obj(
@@ -190,7 +232,7 @@ class MetaSchemaDiff {
         )
     }
     REST(slackUrl, "POST", Some(slackMsg))(rawRequestBuilder) match {
-      case Success(_) => log("posted message to slack")
+      case Success(_)   => log("posted message to slack")
       case Failure(err) => log(s"error posting message to slack:\n${err.toString}")
     }
 
@@ -217,7 +259,7 @@ class MetaSchemaDiff {
       resp <- Try{Await.result(fr, timeout seconds)}
       ret <- resp.status match {
         case 204 => Success(Json.obj())
-        case ok if 200 <= ok && ok <= 299 => Success(resp.json)
+        case ok if 200 <= ok && ok <= 299 => Try(resp.json) orElse Success(JsString(resp.body))
         case _ => Failure(
           new RuntimeException(Try{ (resp.json \ "message").as[String] } getOrElse resp.body)
         )
@@ -326,16 +368,28 @@ class MetaSchemaDiff {
 
   case class ActionInfo( prefix: String, verbs: Seq[String] )
 
-  case class ResourceType( id: UUID,
-                           name: String,
-                           `abstract`: Option[Boolean],
-                           actions: Option[ActionInfo],
-                           lineage: Option[LineageInfo],
-                           property_defs: Seq[ResourceLink] )
+  case object ResourceType {
+    case class Properties(`abstract`: Option[Boolean] = None,
+                          actions: Option[ActionInfo] = None,
+                          lineage: Option[LineageInfo] = None)
+
+    implicit val lineageInfoFmt = Json.format[LineageInfo]
+    implicit val actionInfoFmt = Json.format[ActionInfo]
+    implicit val propertiesFmt = Json.format[Properties]
+  }
+
+  case class ResourceType(id: UUID,
+                          name: String,
+                          properties: ResourceType.Properties,
+                          property_defs: Seq[ResourceLink] )
 
   implicit val resourceLinkFmt = Json.format[ResourceLink]
-  implicit val lineageInfoFmt = Json.format[LineageInfo]
-  implicit val actionInfoFmt = Json.format[ActionInfo]
-  implicit val resourceTypeFmt = Json.format[ResourceType]
+
+  implicit val resourceTypeRds: Reads[ResourceType] = (
+    (__ \ "id").read[UUID] and
+      (__ \ "name").read[String] and
+      ((__ \ "properties").read[ResourceType.Properties] or Reads.pure(ResourceType.Properties())) and
+      ((__ \ "property_defs").read[Seq[ResourceLink]] or Reads.pure(Seq.empty[ResourceLink]))
+  )(ResourceType.apply _)
 
 }
