@@ -45,7 +45,6 @@ class MetaSchemaDiff {
 
   private[this] def rawRequestBuilder(url: String): WSRequest = ws.url(url)
 
-
   def diff(payloadStr: String, ctxStr: String): String = {
 
     val payload = Try{Json.parse(payloadStr)} getOrElse Json.obj()
@@ -109,35 +108,43 @@ class MetaSchemaDiff {
         testApiKey <- Try { (initSecurity \ (0) \ "apiKey").as[String] }
         testApiSecret <- Try { (initSecurity \ (0) \ "apiSecret").as[String] }
         _ = log(s"security credentials: $testApiKey:$testApiSecret")
-        //// bootstrap meta
         goldMetaUrl = s"http://$goldMetaAddress:14374"
         goldMeta = (endpoint: String) => ws.url(goldMetaUrl + "/" + endpoint.stripPrefix("/")).withAuth(testApiKey, testApiSecret, WSAuthScheme.BASIC)
       } yield goldMeta
 
-      val Success(bootstrapMeta) = for {
+      val Success(_) = for {
         _ <- retry(20, 3 seconds){ i =>
           log(s"Attempt $i to check meta /about")
           val ready = REST("/about")(goldMeta)
           log(ready.toString)
           ready.flatMap(js => Try { (js \ "status").as[String] == "OK" })
         }
-        _ <- REST("/bootstrap", "POST", None, timeout = 30)(goldMeta)
+        bTry = REST("/bootstrap", "POST", None, timeout = 30 seconds)(goldMeta)
+        _ = log(bTry.toString)
+        b <- bTry
       } yield ()
 
-      val testRTs = REST("/root/resourcetypes?expand=true&withprops=true")(testMeta)
+      log("Fetching test meta schema")
+      val testSchemaTry = REST("/root/resourcetypes?expand=true&withprops=true", "GET", None, 30 seconds)(testMeta)
         .flatMap(js => Try{js.as[Seq[ResourceType]]})
-        .getOrElse(throw new RuntimeException("could not retrieve schema from test meta"))
-        .map(rt => (rt.id,rt)).toMap
 
-      val goldRTs = REST("/root/resourcetypes?expand=true&withprops=true")(goldMeta)
+      log("Fetching gold meta schema")
+      val goldSchemaTry = REST("/root/resourcetypes?expand=true&withprops=true", "GET", None, 30 seconds)(goldMeta)
         .flatMap(js => Try{js.as[Seq[ResourceType]]})
-        .getOrElse(throw new RuntimeException("could not retrieve schema from gold meta"))
-        .map(rt => (rt.id,rt)).toMap
 
-      computeDiff(testRTs, goldRTs)
+      val diffTry = for {
+        testSchema <- testSchemaTry
+        testRTs = testSchema.map(rt => (rt.id,rt)).toMap
+        goldSchema <- goldSchemaTry
+        goldRTs = goldSchema.map(rt => (rt.id,rt)).toMap
+        _ = log("computing diff")
+      } yield computeDiff(testRTs, goldRTs)
+      log(diffTry.toString)
+      diffTry.get
     }
 
     val slackMsg = generateSlackMessage(metaDockerImageTry, diff)
+    log("Slack message:\n" + Json.prettyPrint(slackMsg))
     REST(slackUrl, "POST", Some(slackMsg))(rawRequestBuilder) match {
       case Success(_)   => log("posted message to slack")
       case Failure(err) => log(s"error posting message to slack:\n${err.toString}")
@@ -146,7 +153,7 @@ class MetaSchemaDiff {
     testEnvIdTry foreach {
       envId =>
         log("cleaning up by deleting test environment")
-        val delete = REST(s"/${targetFqon}/environments/${envId}?force=true", "DELETE", None, timeout = 10)
+        val delete = REST(s"/${targetFqon}/environments/${envId}?force=true", "DELETE", None, timeout = 30 seconds)
         log(s"deleted environment ${envId}: ${delete.toString}")
     }
 
@@ -155,9 +162,9 @@ class MetaSchemaDiff {
 
 
   case class DiffResult(missingTypes: Iterable[(UUID,String)],
-                        inequalTypes: Iterable[(ResourceType,ResourceType)],
+                        badTypes: Iterable[(ResourceType,ResourceType)],
                         missingProperties: Iterable[String],
-                        badProperties: Iterable[PropertyDefinition],
+                        badProperties: Iterable[(PropertyDefinition,PropertyDefinition)],
                         extraProperties: Iterable[String] )
 
   private[this] def computeDiff(testRTs: Map[UUID, ResourceType], goldRTs: Map[UUID, ResourceType]): DiffResult = {
@@ -170,18 +177,19 @@ class MetaSchemaDiff {
 
     val deepCheckIds = goldRTs.map(_._1).toSet intersect testRTs.map(_._1).toSet
     log(s"resource types to deep check: ${deepCheckIds}")
-    val inequalTypes = for {
-      id <- deepCheckIds
+
+    val badTypes = for {
+      id <- deepCheckIds.toSeq
       testrt = testRTs(id).copy(property_defs = Seq.empty)
       goldrt = goldRTs(id).copy(property_defs = Seq.empty)
       if testrt != goldrt
     } yield (testrt,goldrt)
-    log(s"inequal resource types: ${inequalTypes.map(_._1.name).mkString(", ")}")
+    log(s"bad resource types: ${badTypes.map(_._1.name).mkString(", ")}")
 
     log("checking property defs")
 
     val extraprops = (for {
-      id <- deepCheckIds
+      id <- deepCheckIds.toSeq
       testpdefs = testRTs(id).property_defs
       goldpdefs = goldRTs(id).property_defs
       extra = (testpdefs.map(_.name).toSet diff goldpdefs.map(_.name).toSet) map (s"${testRTs(id).name} has extra property definition: " + _)
@@ -190,25 +198,29 @@ class MetaSchemaDiff {
     extraprops foreach log
 
     val missingprops = (for {
-      id <- deepCheckIds
+      id <- deepCheckIds.toSeq
       testpdefs = testRTs(id).property_defs
       goldpdefs = goldRTs(id).property_defs
       missing = (goldpdefs.map(_.name).toSet diff testpdefs.map(_.name).toSet) map (s"${goldRTs(id).name} is missing property definition: " + _)
-    } yield missing) flatten
+    } yield missing.toSeq) flatten
 
     missingprops foreach log
 
     val badprops = (for {
-      id <- deepCheckIds
+      id <- deepCheckIds.toSeq
       dummyid = UUID.randomUUID()
-      testpdefs = testRTs(id).property_defs.map(_.copy(id = dummyid))
+      testpdefs = testRTs(id).property_defs.map(_.copy(id = dummyid)).map(pd => (pd.name,pd)).toMap
       goldpdefs = goldRTs(id).property_defs.map(_.copy(id = dummyid))
-      bad = Set.empty[PropertyDefinition] // FINISH ME
+      bad = goldpdefs.flatMap {
+        goldpd => testpdefs.get(goldpd.name).filter(_ != goldpd).map(goldpd -> _)
+      }
     } yield bad) flatten
+
+    badprops foreach (bp => log(bp.toString))
 
     DiffResult(
       missingTypes = missingrts,
-      inequalTypes = inequalTypes,
+      badTypes = badTypes,
       missingProperties = missingprops,
       badProperties = badprops,
       extraProperties = extraprops
@@ -247,17 +259,21 @@ class MetaSchemaDiff {
 
     diff match {
       case Success(DiffResult(missingTypes, inequalTypes, missingProperties, badProperties, extraProperties)) =>
-        val missing = pretext("Missing ResourceTypes") ++ {
+        val missingtypes = pretext("Missing ResourceTypes") ++ {
           if (missingTypes.isEmpty) green("All factory ResourceTypes were present :100:")
           else red(missingTypes.map("missing ResourceType " + _._2).mkString("\n"))
         }
-        val inequal = pretext("Incorrect ResourceType properties") ++ {
+        val badtypes = pretext("Incorrect ResourceType properties") ++ {
           if (inequalTypes.isEmpty) green("All factory ResourceTypes had correct properties :100:")
           else red(inequalTypes.map(ResourceType.diff).mkString("\n"))
         }
-        val extra = pretext("Additional property definitions in test") ++ {
+        val extraprops = pretext("Additional property definitions in test") ++ {
           if (extraProperties.isEmpty) green("No additional properties.")
           else yellow(extraProperties.mkString("\n"))
+        }
+        val badprops = pretext("Incorrect PropertyDefinitions") ++ {
+          if (badProperties.isEmpty) green("All present PropertyDefinitions were correct :100:")
+          else red(badProperties.map(PropertyDefinition.diff).mkString("\n"))
         }
         val missingprops = pretext("Missing PropertyDefinitions") ++ {
           if (missingProperties.isEmpty) green("All factory PropertyDefinitions were present :100:")
@@ -265,7 +281,7 @@ class MetaSchemaDiff {
         }
         Json.obj(
           "username" -> "meta-schema-diff-lambda",
-          "attachments" -> Seq( header, missing, inequal, missingprops, extra )
+          "attachments" -> Seq( header, missingtypes, badtypes, missingprops, badprops, extraprops )
         )
       case Failure(err) =>
         val error = Json.obj(
@@ -284,13 +300,13 @@ class MetaSchemaDiff {
     sys.env.get(name) orElse default getOrElse {throw new RuntimeException(s"could not location environment variable '${name}'")}
   }
 
-  private[this] def REST(endpoint: String, method: String = "GET", payload: Option[JsValue] = None, timeout: Int = 5)
+  private[this] def REST(endpoint: String, method: String = "GET", payload: Option[JsValue] = None, timeout: Duration = 5 seconds)
                         (implicit requestBuilder: (String => WSRequest)): Try[JsValue] = {
     val fr = payload.foldLeft(
       requestBuilder(endpoint)
     )({case (r,b) => r.withBody(b)}).execute(method)
     for {
-      resp <- Try{Await.result(fr, timeout seconds)}
+      resp <- Try{Await.result(fr, timeout)}
       ret <- resp.status match {
         case 204 => Success(Json.obj())
         case ok if 200 <= ok && ok <= 299 => Try(resp.json) orElse Success(JsString(resp.body))
@@ -434,6 +450,18 @@ class MetaSchemaDiff {
                                  visibility_type: Option[String] )
 
   case object PropertyDefinition {
+    def diff(pds: (PropertyDefinition, PropertyDefinition)): String = {
+      val a = pds._1
+      val b = pds._2
+      s"${a.applies_to}#${a.name} differ: " + Seq(
+        if (a.data_type != b.data_type) Some(s"data_type (${a.data_type} != ${b.data_type})") else None,
+        if (a.is_sealed != b.is_sealed) Some(s"is_sealed (${a.is_sealed} != ${b.is_sealed})") else None,
+        if (a.is_system != b.is_system) Some(s"is_system (${a.is_system} != ${b.is_system})") else None,
+        if (a.requirement_type != b.requirement_type) Some(s"requirement_type (${a.requirement_type} != ${b.requirement_type})") else None,
+        if (a.visibility_type != b.visibility_type) Some(s"visibility_type (${a.visibility_type} != ${b.visibility_type})") else None
+      ).flatten.mkString(", ")
+    }
+
     implicit val propDefFmt = Json.format[PropertyDefinition]
   }
 
