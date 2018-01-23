@@ -65,11 +65,6 @@ class MetaSchemaDiff {
 
     val metaDockerImageTry = REST("/about").flatMap(j => Try{(j \ "docker_image").as[String]})
 
-    case class DiffResults( missingTypes: Iterable[(UUID,String)],
-                            inequalTypes: Iterable[(ResourceType,ResourceType)],
-                            badProperties: Iterable[PropertyDefinition]
-                          )
-
     val diff = Try {
 
       val Success(goldMeta) = for {
@@ -102,20 +97,13 @@ class MetaSchemaDiff {
           (metaContainer \ "properties" \ "port_mappings" \ (0) \ "service_address" \ "host").as[String]
         }
         //// init security
-        _ <- {
-          Stream.range(1, 60).map({ i =>
-            Thread.sleep(1000)
-            log(s"Attempt $i to check security /init")
-            val ready = REST(s"http://$testSecurityAddress:9455/init")(rawRequestBuilder)
-            log(ready.toString)
-            ready.flatMap(js => Try {
-              (js \ "initialized").as[Boolean]
-            })
-          }).collectFirst({ case s@Success(isInit) => isInit }) match {
-            case Some(false) => Success("security is ready for /init")
-            case Some(true) => Failure(new RuntimeException("security has somehow already been initialized"))
-            case None => Failure(new RuntimeException("security is not ready to be initialized yet"))
-          }
+        _ <- retry(20, 3 seconds){ i =>
+          log(s"Attempt $i to check security /init")
+          val ready = REST(s"http://$testSecurityAddress:9455/init")(rawRequestBuilder)
+          log(ready.toString)
+          ready.flatMap(js => Try {
+            (js \ "initialized").as[Boolean] == false
+          })
         }
         initSecurity <- REST(s"http://$testSecurityAddress:9455/init", "POST", Some(Json.obj(
           "username" -> "admin",
@@ -134,22 +122,14 @@ class MetaSchemaDiff {
       } yield goldMeta
 
       val Success(_) = for {
-        ready <- {
-          Stream.range(1, 60).map({ i =>
-            Thread.sleep(1000)
-            log(s"Attempt $i to check meta /about")
-            val ready = REST("/about")(goldMeta)
-            log(ready.toString)
-            ready.flatMap(js => Try {
-              (js \ "status").as[String]
-            })
-          }).collectFirst({ case s@Success(status) => status }) match {
-            case Some("OK") => Success("meta is ready for /bootstrap")
-            case Some(_) => Failure(new RuntimeException("meta is up but not ready for /bootstrap"))
-            case None => Failure(new RuntimeException("meta is apparently not up yet"))
-          }
+        _ <- retry(20, 3 seconds){ i =>
+          log(s"Attempt $i to check meta /about")
+          val ready = REST("/about")(goldMeta)
+          log(ready.toString)
+          ready.flatMap(js => Try {
+            (js \ "status").as[String] == "OK"
+          })
         }
-        _ = log(s"$ready")
         _ = log("bootstrapping meta")
         bootstrap <- REST("/bootstrap", "POST", None, timeout = 30)(goldMeta)
         _ = log(bootstrap.toString)
@@ -184,68 +164,98 @@ class MetaSchemaDiff {
 
       log("checking property defs")
 
-      val v = for {
+      val extra = (for {
         id <- deepCheckIds
         testpdefs = testRTs(id).property_defs
         goldpdefs = goldRTs(id).property_defs
         extra = (testpdefs.map(_.name).toSet diff goldpdefs.map(_.name).toSet) map (s"${testRTs(id).name} has extra property definition: " + _)
-      } yield (Set.empty[PropertyDefinition], extra)
-      val (bad,extra) = v.unzip
+      } yield extra) flatten
 
-      extra.flatten foreach log
+      extra foreach log
+
+      val bad = (for {
+        id <- deepCheckIds
+        testpdefs = testRTs(id).property_defs
+        goldpdefs = goldRTs(id).property_defs
+        bad = Set.empty[PropertyDefinition]
+      } yield bad) flatten
 
       DiffResults(
         missingTypes = missing,
         inequalTypes = inequalTypes,
-        badProperties = bad.flatten
+        badProperties = bad,
+        extraProperties = extra
       )
     }
 
-//    val slackMsg = diff match {
-//      case Success(failures) =>
-//        Json.obj(
-//          "username" -> "meta-schema-diff-lambda",
-//          "attachments" -> Seq(
-//            Json.obj(
-//              "fields" -> Seq(Json.obj(
-//                "title" -> "Target",
-//                "value" -> testMetaUrl
-//              ), Json.obj(
-//                "title" -> "Image",
-//                "value" -> metaDockerImageTry.getOrElse[String]("error retrieving meta info")
-//              ))
-//            ),
-//            Json.obj(
-//              "color" -> (if (failures.isEmpty) "#00ff00" else "#ff0000"),
-//              "pretext" -> s"Result:",
-//              "text" -> (if (failures.isEmpty) "success :100:" else failures.mkString("\n"))
-//            )
-//          )
-//        )
-//      case Failure(err) =>
-//        Json.obj(
-//          "username" -> "meta-schema-diff-lambda",
-//          "attachments" -> Seq(Json.obj(
-//            "color" -> "#ff0000",
-//            "pretext" -> s"Error during lambda",
-//            "text" -> err.toString
-//          ))
-//        )
-//    }
-
+    val slackMsg = generateSlackMessage(metaDockerImageTry, diff)
 //    REST(slackUrl, "POST", Some(slackMsg))(rawRequestBuilder) match {
 //      case Success(_)   => log("posted message to slack")
 //      case Failure(err) => log(s"error posting message to slack:\n${err.toString}")
 //    }
 
-    log("cleaning up by deleting test environment")
     testEnvIdTry foreach {
       envId =>
+        log("cleaning up by deleting test environment")
         val delete = REST(s"/${targetFqon}/environments/${envId}?force=true", "DELETE", None, timeout = 10)
         log(s"deleted environment ${envId}: ${delete.toString}")
     }
 
     "done"
+  }
+
+  case class DiffResults( missingTypes: Iterable[(UUID,String)],
+                          inequalTypes: Iterable[(ResourceType,ResourceType)],
+                          badProperties: Iterable[PropertyDefinition],
+                          extraProperties: Iterable[String] )
+
+  private[this] def retry(numTries: Int, delay: Duration)(f: Int => Try[Boolean]): Try[Boolean] = {
+    var i = 0
+    var t: Try[Boolean] = Failure(new RuntimeException)
+    while (i < numTries && t.isFailure ) {
+      i += 1
+      t = f(i)
+      if (t.isFailure) Thread.sleep(delay.toMillis)
+    }
+    t.flatMap {
+      case true  => Success(true)
+      case false => Failure(new RuntimeException("unexpected return"))
+    }
+  }
+
+  private[this] def generateSlackMessage(metaDockerImageTry: Try[String], diff: Try[DiffResults]): JsObject = {
+    diff match {
+      case Success(DiffResults(missingTypes, inequalTypes, badProperties, extraProperties)) =>
+        val failed = missingTypes.nonEmpty || inequalTypes.nonEmpty || badProperties.nonEmpty
+        Json.obj(
+          "username" -> "meta-schema-diff-lambda",
+          "attachments" -> Seq(
+            Json.obj(
+              "fields" -> Seq(Json.obj(
+                "title" -> "Target",
+                "value" -> testMetaUrl
+              ), Json.obj(
+                "title" -> "Image",
+                "value" -> metaDockerImageTry.getOrElse[String]("error retrieving meta info")
+              ))
+            ),
+            Json.obj(
+              "color" -> (if (failed) "#ff0000" else "#00ff00"),
+              "pretext" -> s"Result:",
+              "text" -> (if (failed) "failed" else "success :100:")
+            )
+          )
+        )
+      case Failure(err) =>
+        Json.obj(
+          "username" -> "meta-schema-diff-lambda",
+          "attachments" -> Seq(Json.obj(
+            "color" -> "#ff0000",
+            "pretext" -> s"Error during lambda",
+            "text" -> err.toString
+          ))
+        )
+    }
   }
 
   private[this] def getEnv(name: String, default: Option[String] = None): String = {
@@ -380,7 +390,14 @@ class MetaSchemaDiff {
     implicit val propertiesFmt = Json.format[Properties]
   }
 
-  case class PropertyDefinition(id: UUID, name: String)
+  case class PropertyDefinition( id: UUID,
+                                 name: String,
+                                 applies_to: String,
+                                 data_type: String,
+                                 is_sealed: Option[Boolean],
+                                 is_system: Option[Boolean],
+                                 requirement_type: Option[String],
+                                 visibility_type: Option[String] )
 
   case object PropertyDefinition {
     implicit val propDefFmt = Json.format[PropertyDefinition]
