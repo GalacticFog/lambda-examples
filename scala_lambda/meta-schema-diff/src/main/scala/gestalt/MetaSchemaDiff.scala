@@ -65,6 +65,11 @@ class MetaSchemaDiff {
 
     val metaDockerImageTry = REST("/about").flatMap(j => Try{(j \ "docker_image").as[String]})
 
+    case class DiffResults( missingTypes: Iterable[(UUID,String)],
+                            inequalTypes: Iterable[(ResourceType,ResourceType)],
+                            badProperties: Iterable[PropertyDefinition]
+                          )
+
     val diff = Try {
 
       val Success(goldMeta) = for {
@@ -150,91 +155,88 @@ class MetaSchemaDiff {
         _ = log(bootstrap.toString)
       } yield ()
 
-      val failures = mutable.MutableList[String]()
-
-      val testRTs = REST("/root/resourcetypes")(testMeta)
-        .flatMap(js => Try{js.as[Seq[ResourceLink]]})
+      val testRTs = REST("/root/resourcetypes?expand=true&withprops=true")(testMeta)
+        .flatMap(js => Try{js.as[Seq[ResourceType]]})
         .getOrElse(throw new RuntimeException("could not retrieve schema from test meta"))
-        .map(rt => (rt.id,rt.name)).toSet
-      val goldRTs = REST("/root/resourcetypes")(goldMeta)
-        .flatMap(js => Try{js.as[Seq[ResourceLink]]})
+        .map(rt => (rt.id,rt)).toMap
+
+      val goldRTs = REST("/root/resourcetypes?expand=true&withprops=true")(goldMeta)
+        .flatMap(js => Try{js.as[Seq[ResourceType]]})
         .getOrElse(throw new RuntimeException("could not retrieve schema from gold meta"))
-        .map(rt => (rt.id,rt.name)).toSet
-      val missing = goldRTs.diff(testRTs)
+        .map(rt => (rt.id,rt)).toMap
+
+      val missing = goldRTs.map(rt => (rt._1,rt._2.name)).toSet diff testRTs.map(rt => (rt._1,rt._2.name)).toSet
       missing.foreach {
         case (id,name) =>
-          val msg = s"missing ResourceType $name"
+          val msg = s"missing ResourceType $name with id $id"
           log(msg)
-          failures += msg
       }
 
-      val deepCheck = goldRTs.intersect(testRTs).map(_._1)
-      log(s"resource types to check: ${deepCheck}")
-      val deepTestRTs = REST("/root/resourcetypes?expand=true")(testMeta)
-        .flatMap(j => Try{j.as[Seq[ResourceType]]})
-        .getOrElse[Seq[ResourceType]]({
-          failures += "could not parse resourcetypes?expand=true from test"
-          log("could not parse resourcetypes?expand=true from test")
-          Seq.empty
-        })
-        .map(rt => (rt.id,rt)).toMap
-      val deepGoldRTs = REST("/root/resourcetypes?expand=true")(goldMeta)
-        .flatMap(j => Try{j.as[Seq[ResourceType]]})
-        .getOrElse[Seq[ResourceType]]({
-          failures += "could not parse resourcetypes?expand=true from gold"
-          log("could not parse resourcetypes?expand=true from gold")
-          Seq.empty
-        })
-        .map(rt => (rt.id,rt)).toMap
-      deepCheck.foreach { id =>
-        log(s"checking resource type ${id}")
-        val deepTestRt = deepTestRTs(id)
-        val deepGoldRt = deepGoldRTs(id)
-        if ( deepTestRt.copy(property_defs = Seq.empty) != deepGoldRt.copy(property_defs = Seq.empty) ) {
-          val msg = s"Resource types ${deepTestRt.name} are not equal"
-          log(msg)
-          failures += msg
-        }
-      }
+      val deepCheckIds = goldRTs.map(_._1).toSet intersect testRTs.map(_._1).toSet
+      log(s"resource types to deep check: ${deepCheckIds}")
+      val inequalTypes = for {
+        id <- deepCheckIds
+        testrt = testRTs(id).copy(property_defs = Seq.empty)
+        goldrt = goldRTs(id).copy(property_defs = Seq.empty)
+        if testrt != goldrt
+      } yield (testrt,goldrt)
+      log(s"inequal resource types: ${inequalTypes.map(_._1.name).mkString(", ")}")
 
-      failures
+      log("checking property defs")
+
+      val v = for {
+        id <- deepCheckIds
+        testpdefs = testRTs(id).property_defs
+        goldpdefs = goldRTs(id).property_defs
+        extra = (testpdefs.map(_.name).toSet diff goldpdefs.map(_.name).toSet) map (s"${testRTs(id).name} has extra property definition: " + _)
+      } yield (Set.empty[PropertyDefinition], extra)
+      val (bad,extra) = v.unzip
+
+      extra.flatten foreach log
+
+      DiffResults(
+        missingTypes = missing,
+        inequalTypes = inequalTypes,
+        badProperties = bad.flatten
+      )
     }
 
-    val slackMsg = diff match {
-      case Success(failures) =>
-        Json.obj(
-          "username" -> "meta-schema-diff-lambda",
-          "attachments" -> Seq(
-            Json.obj(
-              "fields" -> Seq(Json.obj(
-                "title" -> "Target",
-                "value" -> testMetaUrl
-              ), Json.obj(
-                "title" -> "Image",
-                "value" -> metaDockerImageTry.getOrElse[String]("error retrieving meta info")
-              ))
-            ),
-            Json.obj(
-              "color" -> (if (failures.isEmpty) "#00ff00" else "#ff0000"),
-              "pretext" -> s"Result:",
-              "text" -> (if (failures.isEmpty) "success :100:" else failures.mkString("\n"))
-            )
-          )
-        )
-      case Failure(err) =>
-        Json.obj(
-          "username" -> "meta-schema-diff-lambda",
-          "attachments" -> Seq(Json.obj(
-            "color" -> "#ff0000",
-            "pretext" -> s"Error during lambda",
-            "text" -> err.toString
-          ))
-        )
-    }
-    REST(slackUrl, "POST", Some(slackMsg))(rawRequestBuilder) match {
-      case Success(_)   => log("posted message to slack")
-      case Failure(err) => log(s"error posting message to slack:\n${err.toString}")
-    }
+//    val slackMsg = diff match {
+//      case Success(failures) =>
+//        Json.obj(
+//          "username" -> "meta-schema-diff-lambda",
+//          "attachments" -> Seq(
+//            Json.obj(
+//              "fields" -> Seq(Json.obj(
+//                "title" -> "Target",
+//                "value" -> testMetaUrl
+//              ), Json.obj(
+//                "title" -> "Image",
+//                "value" -> metaDockerImageTry.getOrElse[String]("error retrieving meta info")
+//              ))
+//            ),
+//            Json.obj(
+//              "color" -> (if (failures.isEmpty) "#00ff00" else "#ff0000"),
+//              "pretext" -> s"Result:",
+//              "text" -> (if (failures.isEmpty) "success :100:" else failures.mkString("\n"))
+//            )
+//          )
+//        )
+//      case Failure(err) =>
+//        Json.obj(
+//          "username" -> "meta-schema-diff-lambda",
+//          "attachments" -> Seq(Json.obj(
+//            "color" -> "#ff0000",
+//            "pretext" -> s"Error during lambda",
+//            "text" -> err.toString
+//          ))
+//        )
+//    }
+
+//    REST(slackUrl, "POST", Some(slackMsg))(rawRequestBuilder) match {
+//      case Success(_)   => log("posted message to slack")
+//      case Failure(err) => log(s"error posting message to slack:\n${err.toString}")
+//    }
 
     log("cleaning up by deleting test environment")
     testEnvIdTry foreach {
@@ -378,10 +380,16 @@ class MetaSchemaDiff {
     implicit val propertiesFmt = Json.format[Properties]
   }
 
+  case class PropertyDefinition(id: UUID, name: String)
+
+  case object PropertyDefinition {
+    implicit val propDefFmt = Json.format[PropertyDefinition]
+  }
+
   case class ResourceType(id: UUID,
                           name: String,
                           properties: ResourceType.Properties,
-                          property_defs: Seq[ResourceLink] )
+                          property_defs: Seq[PropertyDefinition] )
 
   implicit val resourceLinkFmt = Json.format[ResourceLink]
 
@@ -389,7 +397,7 @@ class MetaSchemaDiff {
     (__ \ "id").read[UUID] and
       (__ \ "name").read[String] and
       ((__ \ "properties").read[ResourceType.Properties] or Reads.pure(ResourceType.Properties())) and
-      ((__ \ "property_defs").read[Seq[ResourceLink]] or Reads.pure(Seq.empty[ResourceLink]))
+      ((__ \ "property_defs").read[Seq[PropertyDefinition]] or Reads.pure(Seq.empty[PropertyDefinition]))
   )(ResourceType.apply _)
 
 }
