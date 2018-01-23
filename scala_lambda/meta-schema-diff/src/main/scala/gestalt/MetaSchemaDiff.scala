@@ -45,6 +45,7 @@ class MetaSchemaDiff {
 
   private[this] def rawRequestBuilder(url: String): WSRequest = ws.url(url)
 
+
   def diff(payloadStr: String, ctxStr: String): String = {
 
     val payload = Try{Json.parse(payloadStr)} getOrElse Json.obj()
@@ -66,7 +67,6 @@ class MetaSchemaDiff {
     val metaDockerImageTry = REST("/about").flatMap(j => Try{(j \ "docker_image").as[String]})
 
     val diff = Try {
-
       val Success(goldMeta) = for {
         testEnvId <- testEnvIdTry
         metaDockerImage <- metaDockerImageTry
@@ -101,38 +101,27 @@ class MetaSchemaDiff {
           log(s"Attempt $i to check security /init")
           val ready = REST(s"http://$testSecurityAddress:9455/init")(rawRequestBuilder)
           log(ready.toString)
-          ready.flatMap(js => Try {
-            (js \ "initialized").as[Boolean] == false
-          })
+          ready.flatMap(js => Try { (js \ "initialized").as[Boolean] == false })
         }
         initSecurity <- REST(s"http://$testSecurityAddress:9455/init", "POST", Some(Json.obj(
-          "username" -> "admin",
-          "password" -> "admin"
+          "username" -> "admin", "password" -> "admin"
         )))(rawRequestBuilder)
-        testApiKey <- Try {
-          (initSecurity \ (0) \ "apiKey").as[String]
-        }
-        testApiSecret <- Try {
-          (initSecurity \ (0) \ "apiSecret").as[String]
-        }
+        testApiKey <- Try { (initSecurity \ (0) \ "apiKey").as[String] }
+        testApiSecret <- Try { (initSecurity \ (0) \ "apiSecret").as[String] }
         _ = log(s"security credentials: $testApiKey:$testApiSecret")
         //// bootstrap meta
         goldMetaUrl = s"http://$goldMetaAddress:14374"
         goldMeta = (endpoint: String) => ws.url(goldMetaUrl + "/" + endpoint.stripPrefix("/")).withAuth(testApiKey, testApiSecret, WSAuthScheme.BASIC)
       } yield goldMeta
 
-      val Success(_) = for {
+      val Success(bootstrapMeta) = for {
         _ <- retry(20, 3 seconds){ i =>
           log(s"Attempt $i to check meta /about")
           val ready = REST("/about")(goldMeta)
           log(ready.toString)
-          ready.flatMap(js => Try {
-            (js \ "status").as[String] == "OK"
-          })
+          ready.flatMap(js => Try { (js \ "status").as[String] == "OK" })
         }
-        _ = log("bootstrapping meta")
-        bootstrap <- REST("/bootstrap", "POST", None, timeout = 30)(goldMeta)
-        _ = log(bootstrap.toString)
+        _ <- REST("/bootstrap", "POST", None, timeout = 30)(goldMeta)
       } yield ()
 
       val testRTs = REST("/root/resourcetypes?expand=true&withprops=true")(testMeta)
@@ -145,54 +134,14 @@ class MetaSchemaDiff {
         .getOrElse(throw new RuntimeException("could not retrieve schema from gold meta"))
         .map(rt => (rt.id,rt)).toMap
 
-      val missing = goldRTs.map(rt => (rt._1,rt._2.name)).toSet diff testRTs.map(rt => (rt._1,rt._2.name)).toSet
-      missing.foreach {
-        case (id,name) =>
-          val msg = s"missing ResourceType $name with id $id"
-          log(msg)
-      }
-
-      val deepCheckIds = goldRTs.map(_._1).toSet intersect testRTs.map(_._1).toSet
-      log(s"resource types to deep check: ${deepCheckIds}")
-      val inequalTypes = for {
-        id <- deepCheckIds
-        testrt = testRTs(id).copy(property_defs = Seq.empty)
-        goldrt = goldRTs(id).copy(property_defs = Seq.empty)
-        if testrt != goldrt
-      } yield (testrt,goldrt)
-      log(s"inequal resource types: ${inequalTypes.map(_._1.name).mkString(", ")}")
-
-      log("checking property defs")
-
-      val extra = (for {
-        id <- deepCheckIds
-        testpdefs = testRTs(id).property_defs
-        goldpdefs = goldRTs(id).property_defs
-        extra = (testpdefs.map(_.name).toSet diff goldpdefs.map(_.name).toSet) map (s"${testRTs(id).name} has extra property definition: " + _)
-      } yield extra) flatten
-
-      extra foreach log
-
-      val bad = (for {
-        id <- deepCheckIds
-        testpdefs = testRTs(id).property_defs
-        goldpdefs = goldRTs(id).property_defs
-        bad = Set.empty[PropertyDefinition]
-      } yield bad) flatten
-
-      DiffResults(
-        missingTypes = missing,
-        inequalTypes = inequalTypes,
-        badProperties = bad,
-        extraProperties = extra
-      )
+      computeDiff(testRTs, goldRTs)
     }
 
     val slackMsg = generateSlackMessage(metaDockerImageTry, diff)
-//    REST(slackUrl, "POST", Some(slackMsg))(rawRequestBuilder) match {
-//      case Success(_)   => log("posted message to slack")
-//      case Failure(err) => log(s"error posting message to slack:\n${err.toString}")
-//    }
+    REST(slackUrl, "POST", Some(slackMsg))(rawRequestBuilder) match {
+      case Success(_)   => log("posted message to slack")
+      case Failure(err) => log(s"error posting message to slack:\n${err.toString}")
+    }
 
     testEnvIdTry foreach {
       envId =>
@@ -204,10 +153,67 @@ class MetaSchemaDiff {
     "done"
   }
 
-  case class DiffResults( missingTypes: Iterable[(UUID,String)],
-                          inequalTypes: Iterable[(ResourceType,ResourceType)],
-                          badProperties: Iterable[PropertyDefinition],
-                          extraProperties: Iterable[String] )
+
+  case class DiffResult(missingTypes: Iterable[(UUID,String)],
+                        inequalTypes: Iterable[(ResourceType,ResourceType)],
+                        missingProperties: Iterable[String],
+                        badProperties: Iterable[PropertyDefinition],
+                        extraProperties: Iterable[String] )
+
+  private[this] def computeDiff(testRTs: Map[UUID, ResourceType], goldRTs: Map[UUID, ResourceType]): DiffResult = {
+    val missingrts = goldRTs.map(rt => (rt._1,rt._2.name)).toSet diff testRTs.map(rt => (rt._1,rt._2.name)).toSet
+    missingrts.foreach {
+      case (id,name) =>
+        val msg = s"missing ResourceType $name with id $id"
+        log(msg)
+    }
+
+    val deepCheckIds = goldRTs.map(_._1).toSet intersect testRTs.map(_._1).toSet
+    log(s"resource types to deep check: ${deepCheckIds}")
+    val inequalTypes = for {
+      id <- deepCheckIds
+      testrt = testRTs(id).copy(property_defs = Seq.empty)
+      goldrt = goldRTs(id).copy(property_defs = Seq.empty)
+      if testrt != goldrt
+    } yield (testrt,goldrt)
+    log(s"inequal resource types: ${inequalTypes.map(_._1.name).mkString(", ")}")
+
+    log("checking property defs")
+
+    val extraprops = (for {
+      id <- deepCheckIds
+      testpdefs = testRTs(id).property_defs
+      goldpdefs = goldRTs(id).property_defs
+      extra = (testpdefs.map(_.name).toSet diff goldpdefs.map(_.name).toSet) map (s"${testRTs(id).name} has extra property definition: " + _)
+    } yield extra) flatten
+
+    extraprops foreach log
+
+    val missingprops = (for {
+      id <- deepCheckIds
+      testpdefs = testRTs(id).property_defs
+      goldpdefs = goldRTs(id).property_defs
+      missing = (goldpdefs.map(_.name).toSet diff testpdefs.map(_.name).toSet) map (s"${goldRTs(id).name} is missing property definition: " + _)
+    } yield missing) flatten
+
+    missingprops foreach log
+
+    val badprops = (for {
+      id <- deepCheckIds
+      dummyid = UUID.randomUUID()
+      testpdefs = testRTs(id).property_defs.map(_.copy(id = dummyid))
+      goldpdefs = goldRTs(id).property_defs.map(_.copy(id = dummyid))
+      bad = Set.empty[PropertyDefinition] // FINISH ME
+    } yield bad) flatten
+
+    DiffResult(
+      missingTypes = missingrts,
+      inequalTypes = inequalTypes,
+      missingProperties = missingprops,
+      badProperties = badprops,
+      extraProperties = extraprops
+    )
+  }
 
   private[this] def retry(numTries: Int, delay: Duration)(f: Int => Try[Boolean]): Try[Boolean] = {
     var i = 0
@@ -223,37 +229,53 @@ class MetaSchemaDiff {
     }
   }
 
-  private[this] def generateSlackMessage(metaDockerImageTry: Try[String], diff: Try[DiffResults]): JsObject = {
+  private[this] def generateSlackMessage(metaDockerImageTry: Try[String], diff: Try[DiffResult]): JsObject = {
+    val header = Json.obj(
+      "fields" -> Seq(Json.obj(
+        "title" -> "Target",
+        "value" -> testMetaUrl
+      ), Json.obj(
+        "title" -> "Image",
+        "value" -> metaDockerImageTry.getOrElse[String]("error retrieving meta info")
+      ))
+    )
+    def pretext(s: String): JsObject = Json.obj("pretext" -> s)
+    def attachment(color: String, text: String) = Json.obj("color" -> color, "text" -> text)
+    def green(text: String) = attachment("#00ff00", text)
+    def red(text: String) = attachment("#ff0000", text)
+    def yellow(text: String) = attachment("#ffff33", text)
+
     diff match {
-      case Success(DiffResults(missingTypes, inequalTypes, badProperties, extraProperties)) =>
-        val failed = missingTypes.nonEmpty || inequalTypes.nonEmpty || badProperties.nonEmpty
+      case Success(DiffResult(missingTypes, inequalTypes, missingProperties, badProperties, extraProperties)) =>
+        val missing = pretext("Missing ResourceTypes") ++ {
+          if (missingTypes.isEmpty) green("All factory ResourceTypes were present :100:")
+          else red(missingTypes.map("missing ResourceType " + _._2).mkString("\n"))
+        }
+        val inequal = pretext("Incorrect ResourceType properties") ++ {
+          if (inequalTypes.isEmpty) green("All factory ResourceTypes had correct properties :100:")
+          else red(inequalTypes.map(ResourceType.diff).mkString("\n"))
+        }
+        val extra = pretext("Additional property definitions in test") ++ {
+          if (extraProperties.isEmpty) green("No additional properties.")
+          else yellow(extraProperties.mkString("\n"))
+        }
+        val missingprops = pretext("Missing PropertyDefinitions") ++ {
+          if (missingProperties.isEmpty) green("All factory PropertyDefinitions were present :100:")
+          else red(missingProperties.mkString("\n"))
+        }
         Json.obj(
           "username" -> "meta-schema-diff-lambda",
-          "attachments" -> Seq(
-            Json.obj(
-              "fields" -> Seq(Json.obj(
-                "title" -> "Target",
-                "value" -> testMetaUrl
-              ), Json.obj(
-                "title" -> "Image",
-                "value" -> metaDockerImageTry.getOrElse[String]("error retrieving meta info")
-              ))
-            ),
-            Json.obj(
-              "color" -> (if (failed) "#ff0000" else "#00ff00"),
-              "pretext" -> s"Result:",
-              "text" -> (if (failed) "failed" else "success :100:")
-            )
-          )
+          "attachments" -> Seq( header, missing, inequal, missingprops, extra )
         )
       case Failure(err) =>
+        val error = Json.obj(
+          "color" -> "#ff0000",
+          "pretext" -> s"Error during lambda",
+          "text" -> err.toString
+        )
         Json.obj(
           "username" -> "meta-schema-diff-lambda",
-          "attachments" -> Seq(Json.obj(
-            "color" -> "#ff0000",
-            "pretext" -> s"Error during lambda",
-            "text" -> err.toString
-          ))
+          "attachments" -> Seq( header, error )
         )
     }
   }
@@ -388,6 +410,18 @@ class MetaSchemaDiff {
     implicit val lineageInfoFmt = Json.format[LineageInfo]
     implicit val actionInfoFmt = Json.format[ActionInfo]
     implicit val propertiesFmt = Json.format[Properties]
+
+    def diff(rts: (ResourceType, ResourceType)): String = {
+      val a = rts._1
+      val b = rts._2
+      a.name + " differ: " + Seq(
+        if (a.properties.`abstract` != b.properties.`abstract`) Some("abstract") else None,
+        if (a.properties.actions.map(_.prefix) != b.properties.actions.map(_.prefix)) Some("actions.prefix") else None,
+        if (a.properties.actions.map(_.verbs.sorted) != b.properties.actions.map(_.verbs.sorted)) Some("actions.verbs") else None,
+        if (a.properties.lineage.map(_.child_types.sorted) != b.properties.lineage.map(_.child_types.sorted)) Some("lineage.child_types") else None,
+        if (a.properties.lineage.map(_.parent_types.sorted) != b.properties.lineage.map(_.parent_types.sorted)) Some("lineage.parent_types") else None
+      ).flatten.mkString(", ")
+    }
   }
 
   case class PropertyDefinition( id: UUID,
