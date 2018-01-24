@@ -451,6 +451,17 @@ function create_limit_rule(base_org, policy, name, description, actions, propert
 }
 
 /*
+ * ResourceTypes and PropertyDefinitions
+ */
+
+function get_resourcetype_by_id(base_org, id) {
+    log("getting resource type with id " + id);
+    var endpoint = "/" + fqon(base_org) + "/resourcetypes/" + id + "?withprops=true";
+    return _GET(endpoint);
+}
+
+
+/*
  * REST utilities
  */
 
