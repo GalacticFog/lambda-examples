@@ -114,8 +114,11 @@ function getLog() {
 
 function log(a, lvl) {
     var str;
-    if ( ! a ) {
+    if ( a === undefined ) {
         str = "undefined";
+    }
+    else if ( a === null ) {
+        str = "null";
     }
     else if (typeof(a) === 'object') {
         str = JSON.stringify(a);
