@@ -63,7 +63,7 @@ function get_meta(args, c) {
     }
 
     var ctx = null;
-    var creds = null;
+    var creds = "";
     if (typeof(c) === 'object') {
         log("get_meta: recvd context", LoggingLevels.DEBUG);
         ctx = c;
@@ -89,7 +89,8 @@ function get_meta(args, c) {
                     log("get_meta: found cookie: " + name, LoggingLevels.DEBUG);
                     if (name === 'auth_token') {
                         log("get_meta: found creds in 'auth_token' cookie", LoggingLevels.DEBUG);
-                        creds = decodeURIComponent(c.substr(i)).toString();
+                        creds = decodeURIComponent(c.substr(i));
+                        log("typeof(creds): " + typeof(creds));
                         break;
                     }
                 }
