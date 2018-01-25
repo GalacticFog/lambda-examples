@@ -89,8 +89,7 @@ function get_meta(args, c) {
                     log("get_meta: found cookie: " + name, LoggingLevels.DEBUG);
                     if (name === 'auth_token') {
                         log("get_meta: found creds in 'auth_token' cookie", LoggingLevels.DEBUG);
-                        creds = decodeURIComponent(c.substr(i));
-                        log("typeof(creds): " + typeof(creds));
+                        creds = "Bearer " + decodeURIComponent(c.substr(i));
                         break;
                     }
                 }
