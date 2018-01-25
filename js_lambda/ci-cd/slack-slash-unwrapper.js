@@ -75,7 +75,7 @@ function run(args, ctx) {
     });
 
     try {
-        resp = _REST_JSON("POST", upstream_url, auth);
+        resp = _REST_JSON("POST", upstream_url, auth, payload);
         console.log(JSON.stringify(resp));
     } catch (err) {
         return JSON.stringify({
