@@ -63,7 +63,7 @@ function get_meta(args, c) {
     }
 
     var ctx = null;
-    var creds = "";
+    var creds = null;
     if (typeof(c) === 'object') {
         log("get_meta: recvd context", LoggingLevels.DEBUG);
         ctx = c;
@@ -77,13 +77,14 @@ function get_meta(args, c) {
         if (ctx && ctx.creds) {
             log("get_meta: creds present in context", LoggingLevels.DEBUG);
             creds = ctx.creds;
-        } else if (ctx && ctx.headers && ctx.headers.Cookie) {
+        }
+        if ( ! creds && ctx && ctx.headers && ctx.headers.Cookie) {
             log("get_meta: cookies present in context, examining", LoggingLevels.DEBUG);
             cookies = ctx.headers.Cookie.split(";");
-            for (c in cookies) {
+            for each (c in cookies) {
                 log("get_meta: examining cookie: " + c.toString(), LoggingLevels.DEBUG);
                 c = c.trim();
-                i = c.indexOf("=")
+                i = c.indexOf("=");
                 if (i >= 0) {
                     name = c.substr(0,i);
                     log("get_meta: found cookie: " + name, LoggingLevels.DEBUG);
@@ -94,7 +95,8 @@ function get_meta(args, c) {
                     }
                 }
             }
-        } else {
+        }
+        if ( ! creds ) {
             var api_key = get_env("API_KEY");
             var api_secret = get_env("API_SECRET");
             creds = "Basic " + javax.xml.bind.DatatypeConverter.printBase64Binary((api_key + ":" + api_secret).getBytes());
