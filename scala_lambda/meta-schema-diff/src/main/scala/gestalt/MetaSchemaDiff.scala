@@ -431,11 +431,11 @@ class MetaSchemaDiff {
       val a = rts._1
       val b = rts._2
       a.name + " differ: " + Seq(
-        if (a.properties.`abstract` != b.properties.`abstract`) Some("abstract") else None,
-        if (a.properties.actions.map(_.prefix) != b.properties.actions.map(_.prefix)) Some("actions.prefix") else None,
-        if (a.properties.actions.map(_.verbs.sorted) != b.properties.actions.map(_.verbs.sorted)) Some("actions.verbs") else None,
-        if (a.properties.lineage.map(_.child_types.sorted) != b.properties.lineage.map(_.child_types.sorted)) Some("lineage.child_types") else None,
-        if (a.properties.lineage.map(_.parent_types.sorted) != b.properties.lineage.map(_.parent_types.sorted)) Some("lineage.parent_types") else None
+        if (a.properties.`abstract`                         != b.properties.`abstract`                        ) Some(s"abstract (${a.properties.`abstract`} != ${b.properties.`abstract`})") else None,
+        if (a.properties.actions.map(_.prefix)              != b.properties.actions.map(_.prefix)             ) Some(s"actions.prefix (${a.properties.actions.map(_.prefix)} != ${a.properties.actions.map(_.prefix)})") else None,
+        if (a.properties.actions.map(_.verbs.sorted)        != b.properties.actions.map(_.verbs.sorted)       ) Some(s"actions.verbs (${a.properties.actions.map(_.verbs.sorted)} != ${b.properties.actions.map(_.verbs.sorted)})") else None,
+        if (a.properties.lineage.map(_.child_types.sorted)  != b.properties.lineage.map(_.child_types.sorted) ) Some(s"lineage.child_types (${a.properties.lineage.map(_.child_types.sorted)} != ${b.properties.lineage.map(_.child_types.sorted)})") else None,
+        if (a.properties.lineage.map(_.parent_types.sorted) != b.properties.lineage.map(_.parent_types.sorted)) Some(s"lineage.parent_types (${a.properties.lineage.map(_.parent_types.sorted)} != ${b.properties.lineage.map(_.parent_types.sorted)})") else None
       ).flatten.mkString(", ")
     }
   }
