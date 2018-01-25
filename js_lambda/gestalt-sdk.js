@@ -81,7 +81,7 @@ function get_meta(args, c) {
             log("get_meta: cookies present in context, examining", LoggingLevels.DEBUG);
             cookies = ctx.headers.Cookie.split(";");
             for (c in cookies) {
-                log("get_meta: examining cookie: " + c, LoggingLevels.DEBUG);
+                log("get_meta: examining cookie: " + c.toString(), LoggingLevels.DEBUG);
                 c = c.trim();
                 i = c.indexOf("=")
                 if (i >= 0) {
