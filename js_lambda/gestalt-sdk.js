@@ -78,7 +78,7 @@ function getLog() {
 
 function log(a, lvl) {
     var str;
-    if ( ! str ) {
+    if ( ! a ) {
         str = "undefined";
     }
     else if (typeof(a) === 'object') {
