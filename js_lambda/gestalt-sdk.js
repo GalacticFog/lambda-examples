@@ -53,24 +53,59 @@ function get_env(key,def) {
     throw "Env missing variable " + key;
 }
 
-function get_meta(args, creds) {
-    log(creds, LoggingLevels.DEBUG);
+function get_meta(args, c) {
+    log(c, LoggingLevels.DEBUG);
     log(args, LoggingLevels.DEBUG);
     if (args && args.meta_url) {
         var meta_url = args.meta_url;
     } else {
         var meta_url = get_env("META_URL");
     }
+
+    var ctx = null;
+    var creds = null;
+    if (typeof(c) === 'object') {
+        log("get_meta: recvd context", LoggingLevels.DEBUG);
+        ctx = c;
+    } else if (typeof(c) === 'string') {
+        log("get_meta: recvd creds", LoggingLevels.DEBUG);
+        creds = c;
+    }
+
     if (!creds || creds === "") {
-        var api_key = get_env("API_KEY");
-        var api_secret = get_env("API_SECRET");
-        creds = "Basic " + javax.xml.bind.DatatypeConverter.printBase64Binary((api_key + ":" + api_secret).getBytes());
+        log("get_meta: creds absent, examining context", LoggingLevels.DEBUG);
+        if (ctx && ctx.creds) {
+            log("get_meta: creds present in context", LoggingLevels.DEBUG);
+            creds = ctx.creds;
+        } else if (ctx && ctx.headers && ctx.headers.Cookie) {
+            log("get_meta: cookies present in context, examining", LoggingLevels.DEBUG);
+            cookies = ctx.headers.Cookie.split(";");
+            for (c in cookies) {
+                log("get_meta: examining cookie: " + c, LoggingLevels.DEBUG);
+                c = c.trim();
+                i = c.indexOf("=")
+                if (i >= 0) {
+                    name = c.substr(0,i);
+                    log("get_meta: found cookie: " + name, LoggingLevels.DEBUG);
+                    if (name === 'auth_token') {
+                        log("get_meta: found creds in 'auth_token' cookie", LoggingLevels.DEBUG);
+                        creds = decodeURIComponent(c.substr(i));
+                        break;
+                    }
+                }
+            }
+        } else {
+            var api_key = get_env("API_KEY");
+            var api_secret = get_env("API_SECRET");
+            creds = "Basic " + javax.xml.bind.DatatypeConverter.printBase64Binary((api_key + ":" + api_secret).getBytes());
+        }
     }
     return {
         url: meta_url,
         creds: creds
     }
 }
+
 
 function getLog() {
     return LOG_APPENDER.toString();
