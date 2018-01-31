@@ -414,30 +414,54 @@ class MetaSchemaDiff {
 
   case class ResourceLink( id: UUID, name: String )
 
-  case class LineageInfo( child_types: Seq[UUID], parent_types: Seq[UUID] )
+  case class LineageInfo( child_types: Seq[UUID], parent_types: Seq[UUID] ) {
+    def canonical = this.copy(
+      child_types = this.child_types.sorted,
+      parent_types = this.parent_types.sorted
+    )
+  }
 
-  case class ActionInfo( prefix: String, verbs: Seq[String] )
+  case class ActionInfo( prefix: String, verbs: Seq[String] ) {
+    def canonical = this.copy(
+      verbs = this.verbs.sorted
+    )
+  }
+
+  case class ApiInfo(rest_name: String)
 
   case object ResourceType {
     case class Properties(`abstract`: Option[Boolean] = None,
                           actions: Option[ActionInfo] = None,
-                          lineage: Option[LineageInfo] = None)
+                          api: Option[ApiInfo] = None,
+//                          is_gestalt: Option[Boolean] = None,
+                          lineage: Option[LineageInfo] = None) {
+
+      def canonical = this.copy(
+        actions = this.actions.map(_.canonical),
+        lineage = this.lineage.map(_.canonical)
+      )
+    }
 
     implicit val lineageInfoFmt = Json.format[LineageInfo]
     implicit val actionInfoFmt = Json.format[ActionInfo]
+    implicit val apiInfoFmt = Json.format[ApiInfo]
     implicit val propertiesFmt = Json.format[Properties]
 
     def diff(rts: (ResourceType, ResourceType)): String = {
       val a = rts._1
       val b = rts._2
       a.name + " differ: " + Seq(
+        if (a.extend                                        != b.extend                                       ) Some(s"extend (${a.extend} != ${b.extend}") else None,
         if (a.properties.`abstract`                         != b.properties.`abstract`                        ) Some(s"abstract (${a.properties.`abstract`} != ${b.properties.`abstract`})") else None,
+//      if (a.properties.is_gestalt                         != b.properties.is_gestalt                        ) Some(s"is_gestalt (${a.properties.is_gestalt} != ${b.properties.is_gestalt})") else None,
+        if (a.properties.api                                != b.properties.api                               ) Some(s"api (${a.properties.api} != ${b.properties.api})") else None,
         if (a.properties.actions.map(_.prefix)              != b.properties.actions.map(_.prefix)             ) Some(s"actions.prefix (${a.properties.actions.map(_.prefix)} != ${a.properties.actions.map(_.prefix)})") else None,
         if (a.properties.actions.map(_.verbs.sorted)        != b.properties.actions.map(_.verbs.sorted)       ) Some(s"actions.verbs (${a.properties.actions.map(_.verbs.sorted)} != ${b.properties.actions.map(_.verbs.sorted)})") else None,
         if (a.properties.lineage.map(_.child_types.sorted)  != b.properties.lineage.map(_.child_types.sorted) ) Some(s"lineage.child_types (${a.properties.lineage.map(_.child_types.sorted)} != ${b.properties.lineage.map(_.child_types.sorted)})") else None,
         if (a.properties.lineage.map(_.parent_types.sorted) != b.properties.lineage.map(_.parent_types.sorted)) Some(s"lineage.parent_types (${a.properties.lineage.map(_.parent_types.sorted)} != ${b.properties.lineage.map(_.parent_types.sorted)})") else None
       ).flatten.mkString(", ")
     }
+
   }
 
   case class PropertyDefinition( id: UUID,
@@ -465,18 +489,28 @@ class MetaSchemaDiff {
     implicit val propDefFmt = Json.format[PropertyDefinition]
   }
 
-  case class ResourceType(id: UUID,
-                          name: String,
-                          properties: ResourceType.Properties,
-                          property_defs: Seq[PropertyDefinition] )
+  case class ResourceType( id: UUID,
+                           name: String,
+                           extend: Option[String],
+                           properties: ResourceType.Properties,
+                           property_defs: Seq[PropertyDefinition] ) {
+    def canonical = this.copy(
+      properties = this.properties.canonical
+    )
+  }
 
   implicit val resourceLinkFmt = Json.format[ResourceLink]
 
-  implicit val resourceTypeRds: Reads[ResourceType] = (
+  val resourceTypeRds: Reads[ResourceType] = (
     (__ \ "id").read[UUID] and
       (__ \ "name").read[String] and
+      (__ \ "extend").readNullable[String] and
       ((__ \ "properties").read[ResourceType.Properties] or Reads.pure(ResourceType.Properties())) and
       ((__ \ "property_defs").read[Seq[PropertyDefinition]] or Reads.pure(Seq.empty[PropertyDefinition]))
   )(ResourceType.apply _)
+
+  implicit val canonicalResourceTypeRds: Reads[ResourceType] = (
+    __.read[ResourceType](resourceTypeRds).map(_.canonical)
+  )
 
 }
