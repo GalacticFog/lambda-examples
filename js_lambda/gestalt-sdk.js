@@ -80,8 +80,9 @@ function log(a, lvl) {
     var str;
     if (typeof(a) === 'object') {
         str = JSON.stringify(a);
-    }
-    else {
+    } else if (a == null) {
+        str = 'null';
+    } else {
         str = a.toString();
     }
     if (lvl === undefined) {
@@ -318,6 +319,16 @@ function create_lambda(parent_org, parent_env, lambda_payload) {
     return _POST("/" + fqon(parent_org) + "/environments/" + parent_env.id + "/lambdas", lambda_payload);
 }
 
+function find_lambda_by_name(parent_org, parent_env, name) {
+
+    // Note: There can be more than one lambda with the same name.  This function returns the first instance
+
+    var endpoint = "/" + fqon(parent_org) + "/environments/" + parent_env.id + "/lambdas?expand=true";
+    var lambdas = _GET(endpoint);
+    for each (l in lambdas) if (l.name == name) return l;
+    return null;
+}
+
 /*
  * containers
  */
@@ -360,6 +371,13 @@ function create_api(parent_org, parent_env, payload, async) {
 
 function find_api(parent_org, api_id, async) {
     return _GET("/" + fqon(parent_org) + "/apis/" + api_id, async);
+}
+
+function find_api_by_name(parent_org, parent_env, name) {
+    var endpoint = "/" + fqon(parent_org) + "/environments/" + parent_env.id + "/apis?expand=true";
+    var apis = _GET(endpoint);
+    for each (api in apis) if (api.name == name) return api;
+    return null;
 }
 
 /*
@@ -511,4 +529,3 @@ function _PUT(endpoint, payload, async, fResponse) {
 function _PATCH(endpoint, payload, async, fResponse) {
     return _REST_JSON("PATCH", endpoint, payload, async, fResponse);
 }
-
