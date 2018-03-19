@@ -22,7 +22,7 @@ function run(args, ctx) {
             u_cpu: cur_app.properties.cpus,
             u_memory: cur_app.properties.memory,
             u_image: cur_app.properties.image,
-            u_endpoints: get_container_endpoint_url(cur_app)
+            u_endpoints: get_container_endpoint_url(org, cur_app)
         });
     } else if (eventName === "container.delete.post") {
         delete_servicenow_container(sn_url, sn_token, cur_app.name);
@@ -33,7 +33,7 @@ function run(args, ctx) {
             u_cpu: cur_app.properties.cpus,
             u_memory: cur_app.properties.memory,
             u_image: cur_app.properties.image,
-            u_endpoints: get_container_endpoint_url(cur_app)
+            u_endpoints: get_container_endpoint_url(org, cur_app)
         });
     }
 
