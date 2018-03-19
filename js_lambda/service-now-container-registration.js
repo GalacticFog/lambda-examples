@@ -1,6 +1,5 @@
 function run(args, ctx) {
     load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/1.4/js_lambda/gestalt-sdk.js');
-    META = get_meta(null,null);
     log("***** begin service now container accounting ************\n");
 
     args = JSON.parse( args );
