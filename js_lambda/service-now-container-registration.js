@@ -1,5 +1,6 @@
 function run(args, ctx) {
     load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/1.4/js_lambda/gestalt-sdk.js');
+    META = get_meta(null,null);
     log("***** begin service now container accounting ************\n");
 
     args = JSON.parse( args );
@@ -21,7 +22,7 @@ function run(args, ctx) {
             u_cpu: cur_app.properties.cpus,
             u_memory: cur_app.properties.memory,
             u_image: cur_app.properties.image,
-            u_endpoints: get_container_endpoint_url(cur_app)
+            u_endpoints: get_service_address(cur_app)
         });
     } else if (eventName === "container.delete.post") {
         delete_servicenow_container(sn_url, sn_token, cur_app.name);
@@ -32,7 +33,7 @@ function run(args, ctx) {
             u_cpu: cur_app.properties.cpus,
             u_memory: cur_app.properties.memory,
             u_image: cur_app.properties.image,
-            u_endpoints: get_container_endpoint_url(cur_app)
+            u_endpoints: get_service_address(cur_app)
         });
     }
 
@@ -90,34 +91,11 @@ function update_servicenow_container(url, token, name, payload) {
     }
 }
 
-function get_container_endpoint_url(cntr) {
-    parent_org = cntr.org;
-    log("Listing endpoints for container");
-    var endpoints = list_container_apiendpoints(parent_org, cntr);
-    if (endpoints === null || endpoints.length == 0) {
-        log("did not find any endpoints on the container");
-        return null;
+function get_service_address(container) {
+    if ( ! container.properties.port_mappings ) return null;
+    for each (pm in container.properties.port_mappings) {
+        if (pm.virtual_hosts && pm.virtual_hosts.length > 0) return ("https://" + pm.virtual_hosts[0]);
     }
-    var endpoint = endpoints[0];
-
-    var tgt_gateway;
-    if ( endpoint.properties.location_id ) {
-        log("finding provider for endpoint " + endpoint.id);
-        tgt_gateway = find_provider(parent_org, endpoint.properties.location_id);
-    }
-    if ( ! tgt_gateway ) {
-        log("could not find target gateway (kong) provider");
-        return null;
-    }
-    log("found gateway provider " + tgt_gateway.name);
-    var base_url;
-    if ( tgt_gateway.properties.config.external_protocol && tgt_gateway.properties.config.env.public.PUBLIC_URL_VHOST_0 ) {
-        base_url = tgt_gateway.properties.config.external_protocol + "://" + tgt_gateway.properties.config.env.public.PUBLIC_URL_VHOST_0;
-    }
-    if ( ! base_url ) {
-        log("ERROR: could not determine base url for target gateway (kong) provider");
-        return getLog();
-    }
-    log("gateway provider base URL is " + base_url);
-    return base_url + "/" + endpoint.properties.parent.name + endpoint.properties.resource;
+    return null;
 }
+
