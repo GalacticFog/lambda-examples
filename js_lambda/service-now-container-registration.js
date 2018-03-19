@@ -12,25 +12,28 @@ function run(args, ctx) {
     var sn_token = get_env("SN_TOKEN");
 
     var cur_app    = args.resource;
+    var org        = cur_app.org;
 
     if (eventName === "container.create.post") {
         create_servicenow_container(sn_url, sn_token, {
             name: cur_app.name,
+            short_description: cur_app.description,
             u_num_instances: cur_app.properties.num_instances,
-            u_cpus: cur_app.properties.cpus,
+            u_cpu: cur_app.properties.cpus,
             u_memory: cur_app.properties.memory,
             u_image: cur_app.properties.image,
-            u_service_address: get_service_address(cur_app)
+            u_endpoints: get_container_endpoint_url(cur_app)
         });
     } else if (eventName === "container.delete.post") {
         delete_servicenow_container(sn_url, sn_token, cur_app.name);
     } else {
         update_servicenow_container(sn_url, sn_token, cur_app.name, {
+            short_description: cur_app.description,
             u_num_instances: cur_app.properties.num_instances,
-            u_cpus: cur_app.properties.cpus,
+            u_cpu: cur_app.properties.cpus,
             u_memory: cur_app.properties.memory,
             u_image: cur_app.properties.image,
-            u_service_address: get_service_address(cur_app)
+            u_endpoints: get_container_endpoint_url(cur_app)
         });
     }
 
@@ -87,12 +90,3 @@ function update_servicenow_container(url, token, name, payload) {
         return _handleResponse(pc.execute().get());
     }
 }
-
-function get_service_address(container) {
-    if ( ! container.properties.port_mappings ) return null;
-    for each (pm in container.properties.port_mappings) {
-        if (pm.virtual_hosts && pm.virtual_hosts.length > 0) return ("https://" + pm.virtual_hosts[0]);
-    }
-    return null;
-}
-
