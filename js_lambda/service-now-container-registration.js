@@ -5,11 +5,7 @@ function run(args, ctx) {
     args = JSON.parse( args );
     ctx = JSON.parse( ctx );
 
-    log(args);
-    log(ctx);
-
-    eventName = args.eventName;
-    args = args.data;
+    eventName = ctx.eventName;
 
     log("eventName: " + eventName);
 
