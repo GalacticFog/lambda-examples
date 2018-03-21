@@ -16,21 +16,21 @@ function run(args, ctx) {
     if (eventName === "container.create.post") {
         create_servicenow_container(sn_url, sn_token, {
             name: cur_app.name,
+            short_description: cur_app.description,
             u_num_instances: cur_app.properties.num_instances,
-            u_cpus: cur_app.properties.cpus,
+            u_cpu: cur_app.properties.cpus,
             u_memory: cur_app.properties.memory,
-            u_image: cur_app.properties.image,
-            u_service_address: get_service_address(cur_app)
+            u_image: cur_app.properties.image
         });
     } else if (eventName === "container.delete.post") {
         delete_servicenow_container(sn_url, sn_token, cur_app.name);
     } else {
         update_servicenow_container(sn_url, sn_token, cur_app.name, {
+            short_description: cur_app.description,
             u_num_instances: cur_app.properties.num_instances,
-            u_cpus: cur_app.properties.cpus,
+            u_cpu: cur_app.properties.cpus,
             u_memory: cur_app.properties.memory,
-            u_image: cur_app.properties.image,
-            u_service_address: get_service_address(cur_app)
+            u_image: cur_app.properties.image
         });
     }
 
