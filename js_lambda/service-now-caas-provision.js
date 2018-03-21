@@ -47,46 +47,4 @@ function run(args, ctx) {
 }
 
 
-function create_policy(base_org, environment, name, description) {
-    log("creating new policy in " + environment.name);
-    return _POST("/" + fqon(base_org) + "/environments/" + environment.id + "/policies", {
-        name: name,
-        description: description ? description : "",
-        properties: {}
-    });
-}
-
-function create_event_rule(base_org, policy, name, description, lambdaId, match_actions) {
-    log("creating new event rule in " + policy.name);
-    return _POST("/" + fqon(base_org) + "/policies/" + policy.id + "/rules", {
-        name: name,
-        description: description ? description : "",
-        properties: {
-            parent: {},
-            lambda: lambdaId,
-            match_actions: match_actions
-        },
-        resource_type: "Gestalt::Resource::Rule::Event"
-    });
-}
-
-function create_limit_rule(base_org, policy, name, description, match_actions, property, operator, value) {
-    log("creating new limit rule in " + policy.name);
-    return _POST("/" + fqon(base_org) + "/policies/" + policy.id + "/rules",{
-        name: name,
-        description: description ? description : "",
-        properties: {
-            parent: {},
-            strict: false,
-            match_actions: match_actions,
-            eval_logic: {
-                property: property,
-                operator: operator,
-                value: value
-            }
-        },
-        resource_type: "Gestalt::Resource::Rule::Limit"
-    });
-}
-
 
