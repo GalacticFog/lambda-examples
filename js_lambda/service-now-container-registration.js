@@ -3,6 +3,11 @@ function run(args, ctx) {
     log("***** begin service now container accounting ************\n");
 
     args = JSON.parse( args );
+    ctx = JSON.parse( ctx );
+
+    log(args);
+    log(ctx);
+
     eventName = args.eventName;
     args = args.data;
 
