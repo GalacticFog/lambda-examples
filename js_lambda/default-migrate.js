@@ -1,8 +1,8 @@
 function migrate(args, ctx) {
+    load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/1.5/js_lambda/gestalt-sdk.js');
+    log("***** begin migrate ************");
 
-    load('https://raw.githubusercontent.com/GalacticFog/lambda-examples/1.4/js_lambda/gestalt-sdk.js');
-
-    args = JSON.parse( args ).data;
+    args = JSON.parse( args );
     ctx  = JSON.parse( ctx );
 
     META = get_meta(args, ctx.creds);
