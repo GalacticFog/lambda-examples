@@ -71,7 +71,7 @@ function migrate(args, ctx) {
     }
 
     try {
-        delete_container(parent_org, parent_env, cur_app);
+        delete_container(parent_org, parent_env, cur_app, false, true); // async=false, force=true
     } catch(err) {
         log("ERROR: error creating container: response code " + err);
         return getLog();

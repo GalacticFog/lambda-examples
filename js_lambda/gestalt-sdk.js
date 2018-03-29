@@ -376,9 +376,10 @@ function find_container_by_name(parent_org, parent_env, name) {
     return null;
 }
 
-function delete_container(parent_org, parent_env, container, async) {
+function delete_container(parent_org, parent_env, container, async, force) {
+    _force = force ? force : false;
     log("Deleting container " + disp(container) + " from " + fqon(parent_org) + "/environments/" + parent_env.id);
-    return _DELETE("/" + fqon(parent_org) + "/environments/" + parent_env.id + "/containers/" + container.id,async);
+    return _DELETE("/" + fqon(parent_org) + "/environments/" + parent_env.id + "/containers/" + container.id + "?force=" + _force,async);
 }
 
 function patch_container(parent_org, parent_env, container, patch, async) {
