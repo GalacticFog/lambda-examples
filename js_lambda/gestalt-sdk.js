@@ -414,12 +414,12 @@ function create_apiendpoint(parent_org, parent_api, payload, async) {
 }
 
 function list_container_apiendpoints(org, container) {
-    var endpoint = "/" + fqon(org) + "/containers/" + container.id + "/apiendpoints?expand=true";
+    var endpoint = "/" + fqon(org) + "/apiendpoints?expand=true&implementation_type=container&implementation_id=" + container.id;
     return _GET(endpoint);
 }
 
 function list_lambda_apiendpoints(org, lambda) {
-    var endpoint = "/" + fqon(org) + "/lambdas/" + lambda.id + "/apiendpoints?expand=true";
+    var endpoint = "/" + fqon(org) + "/apiendpoints?expand=true&implementation_type=lambda&implementation_id=" + lambda.id;
     return _GET(endpoint);
 }
 
