@@ -1,0 +1,2 @@
+export KAFKA_TOPIC=brad
+export KAFKA_BROKERS="localhost:9092"
