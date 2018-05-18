@@ -62,6 +62,15 @@ class LambdaConsumer {
 
   val consumer = new KafkaConsumer[String, Array[Byte]](props)
 
+  def init(): Unit = {
+    log.debug( "lambda init()" )
+  }
+
+  def destroy() {
+    log.debug( "lambda destroy()" )
+    consumer.close()
+  }
+
   def consume( stringEvent : String, stringContext : String ) : String = {
 
     val startTime = DateTime.now()
@@ -155,6 +164,8 @@ class LambdaConsumer {
 
         log.debug(record.offset() + " - record.key : " + record.key() + " - record.value : " + record.value)
         val outMap = mutable.Map(
+          "topic" -> record.topic(),
+          "partition" -> record.partition(),
           "offset" -> record.offset(),
           "key" -> record.key(),
           "value" -> record.value()
@@ -171,7 +182,9 @@ class LambdaConsumer {
         output = JSONArray.toJSONString( List().asJava )
       }
     } finally {
-      consumer.close()
+
+      // We can't close it here because it'll ruin subsequent executions
+      //consumer.close()
     }
 
     output
