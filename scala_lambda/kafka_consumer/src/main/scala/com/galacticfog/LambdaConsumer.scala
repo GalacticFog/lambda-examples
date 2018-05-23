@@ -81,6 +81,9 @@ class LambdaConsumer {
     val params = context.get( "params" ).asInstanceOf[JSONObject]
     log.debug( "queryParams : " + params.toJSONString )
 
+    val resultEntry = params.get( "numResults" )
+    val numResults = if ( resultEntry != null ) resultEntry.asInstanceOf[JSONArray].get(0).asInstanceOf[String].toInt else defaultMaxResults
+
     //TODO : fix this, it's broken with the extraction of the values from the params
     val offsets = if( params.containsKey( "offsets" ) )
     {
@@ -105,14 +108,18 @@ class LambdaConsumer {
         mutable.Map[Int,Long]( 0 -> offset )
       } else
       {
-        log.debug( "no starting offset, starting from empty" )
-        mutable.Map[Int,Long]()
+        log.debug( "no starting offset, rewinding from latest" )
+        val ends = consumer.endOffsets( Seq(new TopicPartition(topic, 0)).asJavaCollection ).asScala
+        ends.keys.map{ key =>
+          val offset = ends.get(key).get
+          val rewoundOffset = Math.max( (offset - numResults), 0 )
+
+          log.debug( s"latest offset ${offset} -> rewoundOffset ${rewoundOffset}" )
+
+          ( key.partition() -> rewoundOffset )
+        }.toMap
       }
     }
-
-    //TODO : parse from the context
-    val resultEntry = params.get( "numResults" )
-    val numResults = if ( resultEntry != null ) resultEntry.asInstanceOf[JSONArray].get(0).asInstanceOf[String].toInt else defaultMaxResults
 
     if( offsets.nonEmpty )
     {
