@@ -2,14 +2,9 @@ package com.galacticfog
 
 import java.util.Base64
 
-import org.joda.time.DateTime
 import org.json.simple.parser.JSONParser
-import org.json.simple.{JSONArray, JSONObject}
+import org.json.simple.JSONObject
 import org.slf4j.LoggerFactory
-
-import scala.util.Random
-import collection.JavaConverters._
-
 
 class FizzBuzz {
 
