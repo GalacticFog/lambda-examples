@@ -404,6 +404,19 @@ function update_container(parent_org, container, async) {
 }
 
 /*
+ * volumes
+ */
+
+function find_volume(parent_org, volume_id, async) {
+    return _GET("/" + fqon(parent_org) + "/volumes/" + volume_id, async);
+}
+
+// function delete_volume(parent_org, volume_id, async) {
+//     log("Deleting volume " + disp(endpoint) + " from " + fqon(parent_org));
+//     return _DELETE("/" + fqon(parent_org) + "/volumes/" + volume_id, async);
+// }
+
+/*
  * apis
  */
 
