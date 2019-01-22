@@ -1,3 +1,8 @@
+// ----------------- SDK functions -------------------------------
+
+
+
+
 var AsyncHttpClient   = Java.type('org.asynchttpclient.DefaultAsyncHttpClient');
 var CompletableFuture = Java.type('java.util.concurrent.CompletableFuture');
 
@@ -53,16 +58,53 @@ function get_env(key,def) {
     throw "Env missing variable " + key;
 }
 
-function get_meta(args, creds) {
+function get_meta(args, c) {
+    log(c, LoggingLevels.DEBUG);
+    log(args, LoggingLevels.DEBUG);
     if (args && args.meta_url) {
         var meta_url = args.meta_url;
     } else {
         var meta_url = get_env("META_URL");
     }
+
+    var ctx = null;
+    var creds = null;
+    if (typeof(c) === 'object') {
+        log("get_meta: recvd context", LoggingLevels.DEBUG);
+        ctx = c;
+    } else if (typeof(c) === 'string') {
+        log("get_meta: recvd creds", LoggingLevels.DEBUG);
+        creds = c;
+    }
+
     if (!creds || creds === "") {
-        var api_key = get_env("API_KEY");
-        var api_secret = get_env("API_SECRET");
-        creds = "Basic " + javax.xml.bind.DatatypeConverter.printBase64Binary((api_key + ":" + api_secret).getBytes());
+        log("get_meta: creds absent, examining context", LoggingLevels.DEBUG);
+        if (ctx && ctx.creds) {
+            log("get_meta: creds present in context", LoggingLevels.DEBUG);
+            creds = ctx.creds;
+        }
+        if ( ! creds && ctx && ctx.headers && ctx.headers.Cookie) {
+            log("get_meta: cookies present in context, examining", LoggingLevels.DEBUG);
+            cookies = ctx.headers.Cookie.split(";");
+            for each (c in cookies) {
+                c = c.trim();
+                i = c.indexOf("=");
+                if (i >= 0) {
+                    name = c.substr(0,i);
+                    log("get_meta: found cookie: " + name, LoggingLevels.DEBUG);
+                    if (name === 'auth_token') {
+                        log("get_meta: found creds in 'auth_token' cookie", LoggingLevels.DEBUG);
+                        creds = "Bearer " + decodeURIComponent(c.substr(i+1));
+                        break;
+                    }
+                }
+            }
+        }
+        if ( ! creds ) {
+            var api_key = get_env("API_KEY");
+            var api_secret = get_env("API_SECRET");
+            creds = "Basic " + javax.xml.bind.DatatypeConverter.printBase64Binary((api_key + ":" + api_secret).getBytes());
+        }
     }
     return {
         url: meta_url,
@@ -70,13 +112,20 @@ function get_meta(args, creds) {
     }
 }
 
+
 function getLog() {
     return LOG_APPENDER.toString();
 }
 
 function log(a, lvl) {
     var str;
-    if (typeof(a) === 'object') {
+    if ( a === undefined ) {
+        str = "undefined";
+    }
+    else if ( a === null ) {
+        str = "null";
+    }
+    else if (typeof(a) === 'object') {
         str = JSON.stringify(a);
     }
     else {
@@ -187,9 +236,9 @@ function create_user(parent_org, account_payload) {
 
 function find_user(parent_org, username) {
     log("Searching for user " + fqon(parent_org) + "/" + username);
-    var users = _GET("/" + fqon(parent_org) + "/users/search?name=" + username);
-    if (users.length == 0) return null;
-    return users[0];
+    var users = _GET("/" + fqon(parent_org) + "/users/search?username=" + username);
+    for each (user in users) if (user.name == username) return user;
+    return null;
 }
 
 function delete_user(parent_org, user) {
@@ -208,8 +257,8 @@ function create_group(parent_org, name, desc) {
 function find_group(parent_org, groupname) {
     log("Searching for group " + fqon(parent_org) + "/" + groupname);
     var groups = _GET("/" + fqon(parent_org) + "/groups/search?name=" + groupname);
-    if (groups.length == 0) return null;
-    return groups[0];
+    for each (group in groups) if (group.name == groupname) return group;
+    return null;
 }
 
 function delete_group(parent_org, group) {
@@ -239,6 +288,16 @@ function list_providers(org, provider_type) {
 
 function find_provider(parent_org, provider_id, async) {
     return _GET("/" + fqon(parent_org) + "/providers/" + provider_id, async);
+}
+
+function redeploy_provider(parent_org, provider, async) {
+    log("Redeploying provider " + disp(provider));
+    return _POST("/" + fqon(parent_org) + "/providers/" + provider.id + "/redeploy", null, async);
+}
+
+function patch_provider(parent_org, provider, patch, async) {
+    log("Patching provider " + disp(provider));
+    return _PATCH("/" + fqon(parent_org) + "/providers/" + provider.id, patch, async);
 }
 
 /*
@@ -306,6 +365,12 @@ function create_lambda(parent_org, parent_env, lambda_payload) {
     return _POST("/" + fqon(parent_org) + "/environments/" + parent_env.id + "/lambdas", lambda_payload);
 }
 
+function delete_lambda(parent_org, parent_env, lambda, async, force) {
+    _force = force ? force : false;
+    log("Deleting lambda " + disp(container) + " from " + fqon(parent_org) + "/environments/" + parent_env.id);
+    return _DELETE("/" + fqon(parent_org) + "/environments/" + parent_env.id + "/lambdas/" + lambda.id + "?force=" + _force,async);
+}
+
 /*
  * containers
  */
@@ -322,9 +387,10 @@ function find_container_by_name(parent_org, parent_env, name) {
     return null;
 }
 
-function delete_container(parent_org, parent_env, container, async) {
+function delete_container(parent_org, parent_env, container, async, force) {
+    _force = force ? force : false;
     log("Deleting container " + disp(container) + " from " + fqon(parent_org) + "/environments/" + parent_env.id);
-    return _DELETE("/" + fqon(parent_org) + "/environments/" + parent_env.id + "/containers/" + container.id,async);
+    return _DELETE("/" + fqon(parent_org) + "/environments/" + parent_env.id + "/containers/" + container.id + "?force=" + _force,async);
 }
 
 function patch_container(parent_org, parent_env, container, patch, async) {
@@ -336,6 +402,19 @@ function update_container(parent_org, container, async) {
     log("Updating container " + disp(container));
     return _PUT("/" + fqon(parent_org) + "/containers/" + container.id, container, async);
 }
+
+/*
+ * volumes
+ */
+
+function find_volume(parent_org, volume_id, async) {
+    return _GET("/" + fqon(parent_org) + "/volumes/" + volume_id, async);
+}
+
+// function delete_volume(parent_org, volume_id, async) {
+//     log("Deleting volume " + disp(endpoint) + " from " + fqon(parent_org));
+//     return _DELETE("/" + fqon(parent_org) + "/volumes/" + volume_id, async);
+// }
 
 /*
  * apis
@@ -360,12 +439,12 @@ function create_apiendpoint(parent_org, parent_api, payload, async) {
 }
 
 function list_container_apiendpoints(org, container) {
-    var endpoint = "/" + fqon(org) + "/containers/" + container.id + "/apiendpoints?expand=true";
+    var endpoint = "/" + fqon(org) + "/apiendpoints?expand=true&implementation_type=container&implementation_id=" + container.id;
     return _GET(endpoint);
 }
 
 function list_lambda_apiendpoints(org, lambda) {
-    var endpoint = "/" + fqon(org) + "/lambdas/" + lambda.id + "/apiendpoints?expand=true";
+    var endpoint = "/" + fqon(org) + "/apiendpoints?expand=true&implementation_type=lambda&implementation_id=" + lambda.id;
     return _GET(endpoint);
 }
 
@@ -405,7 +484,7 @@ function create_policy(base_org, environment, name, description) {
     });
 }
 
-function create_event_rule(base_org, policy, name, description, lambdaId, actions) {
+function create_event_rule(base_org, policy, name, description, lambdaId, match_actions) {
     log("creating new event rule in " + policy.name);
     return _POST("/" + fqon(base_org) + "/policies/" + policy.id + "/rules", {
         name: name,
@@ -413,13 +492,13 @@ function create_event_rule(base_org, policy, name, description, lambdaId, action
         properties: {
             parent: {},
             lambda: lambdaId,
-            actions: actions
+            match_actions: match_actions
         },
         resource_type: "Gestalt::Resource::Rule::Event"
     });
 }
 
-function create_limit_rule(base_org, policy, name, description, actions, property, operator, value) {
+function create_limit_rule(base_org, policy, name, description, match_actions, property, operator, value) {
     log("creating new limit rule in " + policy.name);
     return _POST("/" + fqon(base_org) + "/policies/" + policy.id + "/rules",{
         name: name,
@@ -427,7 +506,7 @@ function create_limit_rule(base_org, policy, name, description, actions, propert
         properties: {
             parent: {},
             strict: false,
-            actions: actions,
+            match_actions: match_actions,
             eval_logic: {
                 property: property,
                 operator: operator,
@@ -437,6 +516,17 @@ function create_limit_rule(base_org, policy, name, description, actions, propert
         resource_type: "Gestalt::Resource::Rule::Limit"
     });
 }
+
+/*
+ * ResourceTypes and PropertyDefinitions
+ */
+
+function get_resourcetype_by_id(base_org, id) {
+    log("getting resource type with id " + id);
+    var endpoint = "/" + fqon(base_org) + "/resourcetypes/" + id + "?withprops=true";
+    return _GET(endpoint);
+}
+
 
 /*
  * REST utilities
@@ -454,7 +544,7 @@ function _handleResponse(response) {
     } else if (code == 204) {
         return null;
     }
-    if (response.getContentType().startsWith("application/json")) return JSON.parse(body);
+    if (response.getContentType() && response.getContentType().startsWith("application/json")) return JSON.parse(body);
     return body;
 }
 
@@ -499,4 +589,3 @@ function _PUT(endpoint, payload, async, fResponse) {
 function _PATCH(endpoint, payload, async, fResponse) {
     return _REST_JSON("PATCH", endpoint, payload, async, fResponse);
 }
-
